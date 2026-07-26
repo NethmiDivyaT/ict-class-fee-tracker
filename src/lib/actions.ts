@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDb } from "./db";
+import { sqlGet, sqlRun } from "./db";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -32,22 +32,18 @@ export async function createClass(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Monthly fee must be a valid amount." };
   }
 
-  const db = getDb();
-
   try {
-    const insertClass = db.prepare(
+    const result = await sqlRun(
       `INSERT INTO classes (name, monthly_fee) VALUES (?, ?)`,
+      [name, Math.round(monthlyFee)],
     );
-    const result = insertClass.run(name, Math.round(monthlyFee));
-    const classId = Number(result.lastInsertRowid);
+    const classId = result.lastInsertRowid;
 
-    if (studentNames.length > 0) {
-      const insertStudent = db.prepare(
+    for (const studentName of studentNames) {
+      await sqlRun(
         `INSERT INTO students (class_id, name, phone, active) VALUES (?, ?, NULL, 1)`,
+        [classId, studentName],
       );
-      for (const studentName of studentNames) {
-        insertStudent.run(classId, studentName);
-      }
     }
 
     revalidateAll();
@@ -69,9 +65,11 @@ export async function updateClass(formData: FormData): Promise<ActionResult> {
   }
 
   try {
-    getDb()
-      .prepare(`UPDATE classes SET name = ?, monthly_fee = ? WHERE id = ?`)
-      .run(name, Math.round(monthlyFee), id);
+    await sqlRun(`UPDATE classes SET name = ?, monthly_fee = ? WHERE id = ?`, [
+      name,
+      Math.round(monthlyFee),
+      id,
+    ]);
     revalidateAll();
     revalidatePath(`/classes/${id}`);
     return { ok: true, id };
@@ -84,7 +82,7 @@ export async function deleteClass(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
   if (!id) return { ok: false, error: "Invalid class." };
 
-  getDb().prepare(`DELETE FROM classes WHERE id = ?`).run(id);
+  await sqlRun(`DELETE FROM classes WHERE id = ?`, [id]);
   revalidateAll();
   return { ok: true };
 }
@@ -98,13 +96,11 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Student name and class are required." };
   }
 
-  const db = getDb();
-  const insert = db.prepare(
-    `INSERT INTO students (class_id, name, phone, active) VALUES (?, ?, ?, 1)`,
-  );
-
   for (const name of names) {
-    insert.run(classId, name, phone);
+    await sqlRun(
+      `INSERT INTO students (class_id, name, phone, active) VALUES (?, ?, ?, 1)`,
+      [classId, name, phone],
+    );
   }
 
   revalidateAll();
@@ -121,11 +117,10 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
 
   if (!id || !name) return { ok: false, error: "Invalid student details." };
 
-  getDb()
-    .prepare(
-      `UPDATE students SET name = ?, phone = ?, active = ? WHERE id = ?`,
-    )
-    .run(name, phone, active, id);
+  await sqlRun(
+    `UPDATE students SET name = ?, phone = ?, active = ? WHERE id = ?`,
+    [name, phone, active, id],
+  );
 
   revalidateAll();
   if (classId) revalidatePath(`/classes/${classId}`);
@@ -137,7 +132,7 @@ export async function deleteStudent(formData: FormData): Promise<ActionResult> {
   const classId = Number(formData.get("class_id"));
   if (!id) return { ok: false, error: "Invalid student." };
 
-  getDb().prepare(`DELETE FROM students WHERE id = ?`).run(id);
+  await sqlRun(`DELETE FROM students WHERE id = ?`, [id]);
   revalidateAll();
   if (classId) revalidatePath(`/classes/${classId}`);
   return { ok: true };
@@ -161,17 +156,18 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Payment date must be YYYY-MM-DD." };
   }
 
-  const db = getDb();
-  const student = db
-    .prepare(
-      `SELECT s.id, s.name, s.class_id, c.monthly_fee
-       FROM students s
-       JOIN classes c ON c.id = s.class_id
-       WHERE s.id = ?`,
-    )
-    .get(studentId) as
-    | { id: number; name: string; class_id: number; monthly_fee: number }
-    | undefined;
+  const student = await sqlGet<{
+    id: number;
+    name: string;
+    class_id: number;
+    monthly_fee: number;
+  }>(
+    `SELECT s.id, s.name, s.class_id, c.monthly_fee
+     FROM students s
+     JOIN classes c ON c.id = s.class_id
+     WHERE s.id = ?`,
+    [studentId],
+  );
 
   if (!student) return { ok: false, error: "Student not found." };
 
@@ -184,7 +180,7 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Invalid payment amount." };
   }
 
-  db.prepare(
+  await sqlRun(
     `INSERT INTO payments (student_id, student_name, year, month, amount, paid_on, note)
      VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(student_id, year, month) DO UPDATE SET
@@ -192,14 +188,15 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
        amount = excluded.amount,
        paid_on = excluded.paid_on,
        note = excluded.note`,
-  ).run(
-    studentId,
-    student.name,
-    year,
-    month,
-    Math.round(amount),
-    paidOn,
-    note,
+    [
+      studentId,
+      student.name,
+      year,
+      month,
+      Math.round(amount),
+      paidOn,
+      note,
+    ],
   );
 
   revalidateAll();
@@ -217,11 +214,10 @@ export async function markUnpaid(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Missing payment details." };
   }
 
-  getDb()
-    .prepare(
-      `DELETE FROM payments WHERE student_id = ? AND year = ? AND month = ?`,
-    )
-    .run(studentId, year, month);
+  await sqlRun(
+    `DELETE FROM payments WHERE student_id = ? AND year = ? AND month = ?`,
+    [studentId, year, month],
+  );
 
   revalidateAll();
   if (classId) revalidatePath(`/classes/${classId}`);

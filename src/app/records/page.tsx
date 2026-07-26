@@ -24,11 +24,13 @@ export default async function RecordsPage({
       ? params.status
       : "all";
   const classId = params.classId ? Number(params.classId) : undefined;
-  const classes = listClasses();
-  const students = listStudentsForMonth(year, month, {
-    classId: Number.isFinite(classId) ? classId : undefined,
-    status,
-  });
+  const [classes, students] = await Promise.all([
+    listClasses(),
+    listStudentsForMonth(year, month, {
+      classId: Number.isFinite(classId) ? classId : undefined,
+      status,
+    }),
+  ]);
 
   const paidCount = students.filter((s) => s.is_paid).length;
   const unpaidCount = students.length - paidCount;

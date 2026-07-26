@@ -23,11 +23,11 @@ export default async function ClassDetailPage({
   const id = Number(idRaw);
   if (!Number.isFinite(id)) notFound();
 
-  const cls = getClass(id);
+  const cls = await getClass(id);
   if (!cls) notFound();
 
   const { year, month } = parsePeriod(await searchParams);
-  const students = listStudentsByClass(id, year, month);
+  const students = await listStudentsByClass(id, year, month);
   const active = students.filter((s) => s.active === 1);
   const paid = active.filter((s) => s.is_paid === 1).length;
   const unpaid = active.length - paid;

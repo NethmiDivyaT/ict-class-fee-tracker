@@ -18,9 +18,11 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams;
   const { year, month } = parsePeriod(params);
-  const stats = getMonthlyStats(year, month);
-  const byClass = getClassMonthlyStats(year, month);
-  const recent = listRecentPayments();
+  const [stats, byClass, recent] = await Promise.all([
+    getMonthlyStats(year, month),
+    getClassMonthlyStats(year, month),
+    listRecentPayments(),
+  ]);
 
   return (
     <div className="space-y-6">

@@ -7,8 +7,8 @@ import { listClasses } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function ClassesPage() {
-  const classes = listClasses();
+export default async function ClassesPage() {
+  const classes = await listClasses();
 
   return (
     <div className="space-y-6">
