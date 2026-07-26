@@ -14,8 +14,16 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "ICT Class Fee Tracker",
+  title: {
+    default: "ICT Class Fee Tracker",
+    template: "%s · ICT Class Fee Tracker",
+  },
   description: "Track student class fees by month in LKR",
+  applicationName: "ICT Class Fee Tracker",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
