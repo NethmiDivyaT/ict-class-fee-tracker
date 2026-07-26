@@ -51,11 +51,11 @@ export function PaymentToggle({
   }
 
   return (
-    <>
+    <div className="w-full md:w-auto">
       <button
         type="button"
         disabled={pending}
-        className={`rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-60 ${
+        className={`inline-flex min-h-10 w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition disabled:opacity-60 md:w-auto ${
           isPaid
             ? "bg-emerald-600 text-white hover:bg-emerald-700"
             : "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]"
@@ -167,6 +167,6 @@ export function PaymentToggle({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -43,72 +43,120 @@ export default async function ClassesPage() {
             No classes yet. Add your first ICT class above.
           </p>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Billing</th>
-                  <th>Fee</th>
-                  <th>Students</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {classes.map((c) => (
-                  <tr key={c.id}>
-                    <td>
+          <>
+            <div className="mobile-card-list">
+              {classes.map((c) => (
+                <article key={c.id} className="mobile-card">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
                       <Link
                         href={`/classes/${c.id}`}
-                        className="font-medium hover:text-[var(--accent)]"
+                        className="text-base font-semibold hover:text-[var(--accent)]"
                       >
                         {c.name}
                       </Link>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          c.billing_period === "weekly"
-                            ? "badge-unpaid"
-                            : "badge-paid"
-                        }`}
-                      >
-                        {c.billing_period === "weekly" ? "Weekly" : "Monthly"}
-                      </span>
-                    </td>
-                    <td>
-                      {formatLKR(c.monthly_fee)}
-                      <span className="text-xs text-[var(--muted)]">
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {formatLKR(c.monthly_fee)}
                         {c.billing_period === "weekly" ? " / week" : " / month"}
-                      </span>
-                    </td>
-                    <td>
-                      {c.active_count} active
-                      {c.student_count !== c.active_count
-                        ? ` / ${c.student_count} total`
-                        : ""}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Link href={`/classes/${c.id}`} className="btn-ghost">
-                          Open
-                        </Link>
-                        <form>
-                          <input type="hidden" name="id" value={c.id} />
-                          <ConfirmSubmit
-                            action={deleteClass}
-                            label="Delete"
-                            message={`Delete class "${c.name}" and all its students/payments?`}
-                            className="btn-ghost text-red-700"
-                          />
-                        </form>
-                      </div>
-                    </td>
+                        {" · "}
+                        {c.active_count} active
+                      </p>
+                    </div>
+                    <span
+                      className={`badge ${
+                        c.billing_period === "weekly"
+                          ? "badge-unpaid"
+                          : "badge-paid"
+                      }`}
+                    >
+                      {c.billing_period === "weekly" ? "Weekly" : "Monthly"}
+                    </span>
+                  </div>
+                  <div className="action-bar mt-3">
+                    <Link href={`/classes/${c.id}`} className="btn-ghost">
+                      Open
+                    </Link>
+                    <form>
+                      <input type="hidden" name="id" value={c.id} />
+                      <ConfirmSubmit
+                        action={deleteClass}
+                        label="Delete"
+                        message={`Delete class "${c.name}" and all its students/payments?`}
+                        className="btn-danger"
+                      />
+                    </form>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="desktop-table table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Billing</th>
+                    <th>Fee</th>
+                    <th>Students</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {classes.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link
+                          href={`/classes/${c.id}`}
+                          className="font-medium hover:text-[var(--accent)]"
+                        >
+                          {c.name}
+                        </Link>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            c.billing_period === "weekly"
+                              ? "badge-unpaid"
+                              : "badge-paid"
+                          }`}
+                        >
+                          {c.billing_period === "weekly" ? "Weekly" : "Monthly"}
+                        </span>
+                      </td>
+                      <td>
+                        {formatLKR(c.monthly_fee)}
+                        <span className="text-xs text-[var(--muted)]">
+                          {c.billing_period === "weekly" ? " / week" : " / month"}
+                        </span>
+                      </td>
+                      <td>
+                        {c.active_count} active
+                        {c.student_count !== c.active_count
+                          ? ` / ${c.student_count} total`
+                          : ""}
+                      </td>
+                      <td>
+                        <div className="action-bar">
+                          <Link href={`/classes/${c.id}`} className="btn-ghost">
+                            Open
+                          </Link>
+                          <form>
+                            <input type="hidden" name="id" value={c.id} />
+                            <ConfirmSubmit
+                              action={deleteClass}
+                              label="Delete"
+                              message={`Delete class "${c.name}" and all its students/payments?`}
+                              className="btn-danger"
+                            />
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </div>

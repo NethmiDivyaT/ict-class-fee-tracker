@@ -115,107 +115,193 @@ export default async function ClassDetailPage({
             No students in this class yet.
           </p>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Payment record</th>
-                  <th>Action</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s) => (
-                  <tr key={s.id} className={s.active ? "" : "opacity-60"}>
-                    <td>
-                      <p className="font-medium">{s.name}</p>
+          <>
+            <div className="mobile-card-list">
+              {students.map((s) => (
+                <article
+                  key={s.id}
+                  className={`mobile-card ${s.active ? "" : "opacity-60"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{s.name}</p>
                       <p className="text-xs text-[var(--muted)]">
                         {s.phone || "No phone"}
                       </p>
-                    </td>
-                    <td>
-                      {s.active ? (
-                        s.is_paid ? (
-                          <div>
-                            <span className="badge badge-paid">Paid</span>
-                            <p className="mt-1.5 text-sm font-medium">
-                              {s.paid_student_name || s.name}
-                            </p>
-                            <p className="text-xs text-[var(--muted)]">
-                              Paid on {s.paid_on}
-                              {s.paid_amount != null
-                                ? ` · ${formatLKR(s.paid_amount)}`
-                                : ""}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="badge badge-unpaid">Unpaid</span>
-                        )
+                    </div>
+                    {s.active ? (
+                      s.is_paid ? (
+                        <span className="badge badge-paid">Paid</span>
                       ) : (
-                        <span className="badge badge-inactive">Inactive</span>
-                      )}
-                    </td>
-                    <td>
-                      {s.active ? (
-                        <PaymentToggle
-                          studentId={s.id}
-                          studentName={s.name}
-                          classId={cls.id}
-                          year={year}
-                          month={month}
-                          week={week}
-                          isPaid={Boolean(s.is_paid)}
-                          defaultAmount={cls.monthly_fee}
-                          paidOn={s.paid_on}
-                          periodLabel={isWeekly ? "this week" : "this month"}
-                        />
-                      ) : (
-                        <span className="text-sm text-[var(--muted)]">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <form>
-                          <input type="hidden" name="id" value={s.id} />
-                          <input type="hidden" name="class_id" value={cls.id} />
-                          <input type="hidden" name="name" value={s.name} />
-                          {s.phone ? (
-                            <input type="hidden" name="phone" value={s.phone} />
-                          ) : null}
-                          <input
-                            type="hidden"
-                            name="active"
-                            value={s.active ? "0" : "1"}
-                          />
-                          <ConfirmSubmit
-                            action={updateStudent}
-                            label={s.active ? "Deactivate" : "Activate"}
-                            message={
-                              s.active
-                                ? `Deactivate ${s.name}? They will be excluded from unpaid lists.`
-                                : `Activate ${s.name}?`
-                            }
-                            className="btn-ghost"
-                          />
-                        </form>
-                        <form>
-                          <input type="hidden" name="id" value={s.id} />
-                          <input type="hidden" name="class_id" value={cls.id} />
-                          <ConfirmSubmit
-                            action={deleteStudent}
-                            label="Delete"
-                            message={`Delete ${s.name} and their payment history?`}
-                            className="btn-ghost text-red-700"
-                          />
-                        </form>
-                      </div>
-                    </td>
+                        <span className="badge badge-unpaid">Unpaid</span>
+                      )
+                    ) : (
+                      <span className="badge badge-inactive">Inactive</span>
+                    )}
+                  </div>
+                  {s.active && s.is_paid ? (
+                    <p className="mt-2 text-xs text-[var(--muted)]">
+                      {s.paid_student_name || s.name} · Paid on {s.paid_on}
+                      {s.paid_amount != null
+                        ? ` · ${formatLKR(s.paid_amount)}`
+                        : ""}
+                    </p>
+                  ) : null}
+                  <div className="action-bar mt-3">
+                    {s.active ? (
+                      <PaymentToggle
+                        studentId={s.id}
+                        studentName={s.name}
+                        classId={cls.id}
+                        year={year}
+                        month={month}
+                        week={week}
+                        isPaid={Boolean(s.is_paid)}
+                        defaultAmount={cls.monthly_fee}
+                        paidOn={s.paid_on}
+                        periodLabel={isWeekly ? "this week" : "this month"}
+                      />
+                    ) : null}
+                    <form>
+                      <input type="hidden" name="id" value={s.id} />
+                      <input type="hidden" name="class_id" value={cls.id} />
+                      <input type="hidden" name="name" value={s.name} />
+                      {s.phone ? (
+                        <input type="hidden" name="phone" value={s.phone} />
+                      ) : null}
+                      <input
+                        type="hidden"
+                        name="active"
+                        value={s.active ? "0" : "1"}
+                      />
+                      <ConfirmSubmit
+                        action={updateStudent}
+                        label={s.active ? "Deactivate" : "Activate"}
+                        message={
+                          s.active
+                            ? `Deactivate ${s.name}? They will be excluded from unpaid lists.`
+                            : `Activate ${s.name}?`
+                        }
+                        className="btn-ghost"
+                      />
+                    </form>
+                    <form>
+                      <input type="hidden" name="id" value={s.id} />
+                      <input type="hidden" name="class_id" value={cls.id} />
+                      <ConfirmSubmit
+                        action={deleteStudent}
+                        label="Delete"
+                        message={`Delete ${s.name} and their payment history?`}
+                        className="btn-danger"
+                      />
+                    </form>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="desktop-table table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Payment record</th>
+                    <th>Action</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {students.map((s) => (
+                    <tr key={s.id} className={s.active ? "" : "opacity-60"}>
+                      <td>
+                        <p className="font-medium">{s.name}</p>
+                        <p className="text-xs text-[var(--muted)]">
+                          {s.phone || "No phone"}
+                        </p>
+                      </td>
+                      <td>
+                        {s.active ? (
+                          s.is_paid ? (
+                            <div>
+                              <span className="badge badge-paid">Paid</span>
+                              <p className="mt-1.5 text-sm font-medium">
+                                {s.paid_student_name || s.name}
+                              </p>
+                              <p className="text-xs text-[var(--muted)]">
+                                Paid on {s.paid_on}
+                                {s.paid_amount != null
+                                  ? ` · ${formatLKR(s.paid_amount)}`
+                                  : ""}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="badge badge-unpaid">Unpaid</span>
+                          )
+                        ) : (
+                          <span className="badge badge-inactive">Inactive</span>
+                        )}
+                      </td>
+                      <td>
+                        {s.active ? (
+                          <PaymentToggle
+                            studentId={s.id}
+                            studentName={s.name}
+                            classId={cls.id}
+                            year={year}
+                            month={month}
+                            week={week}
+                            isPaid={Boolean(s.is_paid)}
+                            defaultAmount={cls.monthly_fee}
+                            paidOn={s.paid_on}
+                            periodLabel={isWeekly ? "this week" : "this month"}
+                          />
+                        ) : (
+                          <span className="text-sm text-[var(--muted)]">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="action-bar">
+                          <form>
+                            <input type="hidden" name="id" value={s.id} />
+                            <input type="hidden" name="class_id" value={cls.id} />
+                            <input type="hidden" name="name" value={s.name} />
+                            {s.phone ? (
+                              <input type="hidden" name="phone" value={s.phone} />
+                            ) : null}
+                            <input
+                              type="hidden"
+                              name="active"
+                              value={s.active ? "0" : "1"}
+                            />
+                            <ConfirmSubmit
+                              action={updateStudent}
+                              label={s.active ? "Deactivate" : "Activate"}
+                              message={
+                                s.active
+                                  ? `Deactivate ${s.name}? They will be excluded from unpaid lists.`
+                                  : `Activate ${s.name}?`
+                              }
+                              className="btn-ghost"
+                            />
+                          </form>
+                          <form>
+                            <input type="hidden" name="id" value={s.id} />
+                            <input type="hidden" name="class_id" value={cls.id} />
+                            <ConfirmSubmit
+                              action={deleteStudent}
+                              label="Delete"
+                              message={`Delete ${s.name} and their payment history?`}
+                              className="btn-danger"
+                            />
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </div>
