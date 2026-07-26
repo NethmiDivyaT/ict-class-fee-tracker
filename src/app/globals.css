@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f6f8;
+  --panel: #ffffff;
+  --surface: #eef3f6;
+  --ink: #14212b;
+  --muted: #5b6b76;
+  --line: #d7e0e6;
+  --accent: #0f766e;
+  --accent-strong: #0b5f59;
+  --accent-soft: #d9f3ef;
+  --font-sans: var(--font-source-sans);
+  --font-display: var(--font-fraunces);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-source-sans);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, #dceeea 0%, transparent 40%),
+    radial-gradient(circle at top right, #e7eef5 0%, transparent 35%),
+    var(--background);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.field:focus {
+  outline: 2px solid color-mix(in oklab, var(--accent) 45%, white);
+  outline-offset: 1px;
+}
+
+.btn-primary {
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.55rem 1rem;
+  white-space: nowrap;
+}
+
+.btn-primary:hover {
+  background: var(--accent-strong);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.btn-ghost {
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.btn-ghost:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(20 33 43 / 4%);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925rem;
+}
+
+table.data th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+table.data td {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+table.data tr:last-child td {
+  border-bottom: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-paid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-unpaid {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.badge-inactive {
+  background: var(--surface);
+  color: var(--muted);
+}
