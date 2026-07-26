@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sqlGet, sqlRun } from "./db";
+import { sqlGet, sqlRun, type BillingPeriod } from "./db";
+import { getISOWeekMonday } from "./format";
 
 function revalidateAll() {
   revalidatePath("/");
   revalidatePath("/classes");
   revalidatePath("/records");
+  revalidatePath("/reports");
 }
 
 function parseStudentNames(raw: string): string[] {
@@ -16,6 +18,10 @@ function parseStudentNames(raw: string): string[] {
     .filter(Boolean);
 }
 
+function parseBillingPeriod(raw: FormDataEntryValue | null): BillingPeriod {
+  return raw === "weekly" ? "weekly" : "monthly";
+}
+
 export type ActionResult =
   | { ok: true; id?: number }
   | { ok: false; error: string };
@@ -23,19 +29,20 @@ export type ActionResult =
 export async function createClass(formData: FormData): Promise<ActionResult> {
   const name = String(formData.get("name") || "").trim();
   const monthlyFee = Number(formData.get("monthly_fee") || 0);
+  const billingPeriod = parseBillingPeriod(formData.get("billing_period"));
   const studentNames = parseStudentNames(
     String(formData.get("students") || ""),
   );
 
   if (!name) return { ok: false, error: "Class name is required." };
   if (!Number.isFinite(monthlyFee) || monthlyFee < 0) {
-    return { ok: false, error: "Monthly fee must be a valid amount." };
+    return { ok: false, error: "Fee must be a valid amount." };
   }
 
   try {
     const result = await sqlRun(
-      `INSERT INTO classes (name, monthly_fee) VALUES (?, ?)`,
-      [name, Math.round(monthlyFee)],
+      `INSERT INTO classes (name, monthly_fee, billing_period) VALUES (?, ?, ?)`,
+      [name, Math.round(monthlyFee), billingPeriod],
     );
     const classId = result.lastInsertRowid;
 
@@ -58,18 +65,18 @@ export async function updateClass(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   const monthlyFee = Number(formData.get("monthly_fee") || 0);
+  const billingPeriod = parseBillingPeriod(formData.get("billing_period"));
 
   if (!id || !name) return { ok: false, error: "Invalid class details." };
   if (!Number.isFinite(monthlyFee) || monthlyFee < 0) {
-    return { ok: false, error: "Monthly fee must be a valid amount." };
+    return { ok: false, error: "Fee must be a valid amount." };
   }
 
   try {
-    await sqlRun(`UPDATE classes SET name = ?, monthly_fee = ? WHERE id = ?`, [
-      name,
-      Math.round(monthlyFee),
-      id,
-    ]);
+    await sqlRun(
+      `UPDATE classes SET name = ?, monthly_fee = ?, billing_period = ? WHERE id = ?`,
+      [name, Math.round(monthlyFee), billingPeriod, id],
+    );
     revalidateAll();
     revalidatePath(`/classes/${id}`);
     return { ok: true, id };
@@ -141,14 +148,15 @@ export async function deleteStudent(formData: FormData): Promise<ActionResult> {
 export async function markPaid(formData: FormData): Promise<ActionResult> {
   const studentId = Number(formData.get("student_id"));
   const year = Number(formData.get("year"));
-  const month = Number(formData.get("month"));
+  const monthRaw = Number(formData.get("month"));
+  const weekRaw = Number(formData.get("week") || 0);
   const amountRaw = formData.get("amount");
   const note = String(formData.get("note") || "").trim() || null;
   const paidOn =
     String(formData.get("paid_on") || "").trim() ||
     new Date().toLocaleDateString("en-CA");
 
-  if (!studentId || !year || !month) {
+  if (!studentId || !year) {
     return { ok: false, error: "Missing payment details." };
   }
 
@@ -161,8 +169,9 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
     name: string;
     class_id: number;
     monthly_fee: number;
+    billing_period: BillingPeriod;
   }>(
-    `SELECT s.id, s.name, s.class_id, c.monthly_fee
+    `SELECT s.id, s.name, s.class_id, c.monthly_fee, c.billing_period
      FROM students s
      JOIN classes c ON c.id = s.class_id
      WHERE s.id = ?`,
@@ -170,6 +179,23 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
   );
 
   if (!student) return { ok: false, error: "Student not found." };
+
+  let month = monthRaw;
+  let week = 0;
+
+  if (student.billing_period === "weekly") {
+    week = weekRaw;
+    if (!Number.isFinite(week) || week < 1 || week > 53) {
+      return { ok: false, error: "Valid week is required for weekly classes." };
+    }
+    const monday = getISOWeekMonday(year, week);
+    month = monday.getUTCMonth() + 1;
+  } else {
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      return { ok: false, error: "Valid month is required." };
+    }
+    week = 0;
+  }
 
   const amount =
     amountRaw !== null && String(amountRaw).trim() !== ""
@@ -181,9 +207,9 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
   }
 
   await sqlRun(
-    `INSERT INTO payments (student_id, student_name, year, month, amount, paid_on, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(student_id, year, month) DO UPDATE SET
+    `INSERT INTO payments (student_id, student_name, year, month, week, amount, paid_on, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(student_id, year, month, week) DO UPDATE SET
        student_name = excluded.student_name,
        amount = excluded.amount,
        paid_on = excluded.paid_on,
@@ -193,6 +219,7 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
       student.name,
       year,
       month,
+      week,
       Math.round(amount),
       paidOn,
       note,
@@ -207,16 +234,44 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
 export async function markUnpaid(formData: FormData): Promise<ActionResult> {
   const studentId = Number(formData.get("student_id"));
   const year = Number(formData.get("year"));
-  const month = Number(formData.get("month"));
+  const monthRaw = Number(formData.get("month"));
+  const weekRaw = Number(formData.get("week") || 0);
   const classId = Number(formData.get("class_id"));
 
-  if (!studentId || !year || !month) {
+  if (!studentId || !year) {
     return { ok: false, error: "Missing payment details." };
   }
 
+  const student = await sqlGet<{ billing_period: BillingPeriod }>(
+    `SELECT c.billing_period
+     FROM students s
+     JOIN classes c ON c.id = s.class_id
+     WHERE s.id = ?`,
+    [studentId],
+  );
+
+  if (!student) return { ok: false, error: "Student not found." };
+
+  let month = monthRaw;
+  let week = 0;
+
+  if (student.billing_period === "weekly") {
+    week = weekRaw;
+    if (!Number.isFinite(week) || week < 1 || week > 53) {
+      return { ok: false, error: "Valid week is required." };
+    }
+    const monday = getISOWeekMonday(year, week);
+    month = monday.getUTCMonth() + 1;
+  } else {
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      return { ok: false, error: "Valid month is required." };
+    }
+  }
+
   await sqlRun(
-    `DELETE FROM payments WHERE student_id = ? AND year = ? AND month = ?`,
-    [studentId, year, month],
+    `DELETE FROM payments
+     WHERE student_id = ? AND year = ? AND month = ? AND week = ?`,
+    [studentId, year, month, week],
   );
 
   revalidateAll();

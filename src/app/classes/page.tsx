@@ -21,7 +21,8 @@ export default async function ClassesPage() {
           Classes & students
         </h1>
         <p className="mt-1 text-[var(--muted)]">
-          Add a class with its students, then mark paid with student name and paying date.
+          Choose monthly or weekly billing per class, then mark paid with student
+          name and paying date.
         </p>
       </section>
 
@@ -47,7 +48,8 @@ export default async function ClassesPage() {
               <thead>
                 <tr>
                   <th>Class</th>
-                  <th>Monthly fee</th>
+                  <th>Billing</th>
+                  <th>Fee</th>
                   <th>Students</th>
                   <th></th>
                 </tr>
@@ -63,7 +65,23 @@ export default async function ClassesPage() {
                         {c.name}
                       </Link>
                     </td>
-                    <td>{formatLKR(c.monthly_fee)}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          c.billing_period === "weekly"
+                            ? "badge-unpaid"
+                            : "badge-paid"
+                        }`}
+                      >
+                        {c.billing_period === "weekly" ? "Weekly" : "Monthly"}
+                      </span>
+                    </td>
+                    <td>
+                      {formatLKR(c.monthly_fee)}
+                      <span className="text-xs text-[var(--muted)]">
+                        {c.billing_period === "weekly" ? " / week" : " / month"}
+                      </span>
+                    </td>
                     <td>
                       {c.active_count} active
                       {c.student_count !== c.active_count

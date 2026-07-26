@@ -189,6 +189,11 @@ table.data tr:last-child td {
   color: var(--muted);
 }
 
+.badge-weekly {
+  background: var(--sky-soft);
+  color: #1d4f9c;
+}
+
 .stat-card {
   border-radius: 1rem;
   padding: 1rem 1.05rem;

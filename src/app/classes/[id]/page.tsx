@@ -6,8 +6,15 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { MonthPicker } from "@/components/MonthPicker";
 import { PaymentToggle } from "@/components/PaymentToggle";
 import { StudentForm } from "@/components/StudentForm";
+import { WeekPicker } from "@/components/WeekPicker";
 import { deleteStudent, updateStudent } from "@/lib/actions";
-import { formatLKR, monthLabel, parsePeriod } from "@/lib/format";
+import {
+  formatLKR,
+  monthLabel,
+  parsePeriod,
+  parseWeekPeriod,
+  weekLabel,
+} from "@/lib/format";
 import { getClass, listStudentsByClass } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +24,7 @@ export default async function ClassDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; month?: string }>;
+  searchParams: Promise<{ year?: string; month?: string; week?: string }>;
 }) {
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -26,11 +33,22 @@ export default async function ClassDetailPage({
   const cls = await getClass(id);
   if (!cls) notFound();
 
-  const { year, month } = parsePeriod(await searchParams);
-  const students = await listStudentsByClass(id, year, month);
+  const sp = await searchParams;
+  const isWeekly = cls.billing_period === "weekly";
+  const monthPeriod = parsePeriod(sp);
+  const weekPeriod = parseWeekPeriod(sp);
+
+  const year = isWeekly ? weekPeriod.year : monthPeriod.year;
+  const month = isWeekly ? weekPeriod.month : monthPeriod.month;
+  const week = isWeekly ? weekPeriod.week : 0;
+
+  const students = await listStudentsByClass(id, year, month, week);
   const active = students.filter((s) => s.active === 1);
   const paid = active.filter((s) => s.is_paid === 1).length;
   const unpaid = active.length - paid;
+  const periodText = isWeekly
+    ? weekLabel(year, week)
+    : monthLabel(year, month);
 
   return (
     <div className="space-y-6">
@@ -38,22 +56,32 @@ export default async function ClassDetailPage({
         <Link href="/classes" className="text-sm text-[var(--accent)]">
           ← All classes
         </Link>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1
-              className="text-3xl font-semibold tracking-tight"
-              style={{ fontFamily: "var(--font-display), serif" }}
-            >
-              {cls.name}
-            </h1>
-            <p className="mt-1 text-[var(--muted)]">
-              Fee {formatLKR(cls.monthly_fee)} · {monthLabel(year, month)} ·{" "}
-              {paid} paid / {unpaid} unpaid
-            </p>
+        <div className="page-hero anim-fade-up">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="eyebrow">{isWeekly ? "Weekly class" : "Monthly class"}</p>
+              </div>
+              <h1
+                className="mt-1 text-3xl font-semibold tracking-tight"
+                style={{ fontFamily: "var(--font-display), serif" }}
+              >
+                {cls.name}
+              </h1>
+              <p className="mt-1 text-[var(--muted)]">
+                Fee {formatLKR(cls.monthly_fee)}
+                {isWeekly ? " / week" : " / month"} · {periodText} · {paid} paid /{" "}
+                {unpaid} unpaid
+              </p>
+            </div>
+            <Suspense fallback={null}>
+              {isWeekly ? (
+                <WeekPicker year={year} week={week} />
+              ) : (
+                <MonthPicker year={year} month={month} />
+              )}
+            </Suspense>
           </div>
-          <Suspense fallback={null}>
-            <MonthPicker year={year} month={month} />
-          </Suspense>
         </div>
       </section>
 
@@ -65,6 +93,7 @@ export default async function ClassDetailPage({
             id: cls.id,
             name: cls.name,
             monthly_fee: cls.monthly_fee,
+            billing_period: cls.billing_period,
           }}
         />
       </section>
@@ -135,9 +164,11 @@ export default async function ClassDetailPage({
                           classId={cls.id}
                           year={year}
                           month={month}
+                          week={week}
                           isPaid={Boolean(s.is_paid)}
                           defaultAmount={cls.monthly_fee}
                           paidOn={s.paid_on}
+                          periodLabel={isWeekly ? "this week" : "this month"}
                         />
                       ) : (
                         <span className="text-sm text-[var(--muted)]">—</span>
@@ -162,7 +193,7 @@ export default async function ClassDetailPage({
                             label={s.active ? "Deactivate" : "Activate"}
                             message={
                               s.active
-                                ? `Deactivate ${s.name}? They will be excluded from monthly unpaid lists.`
+                                ? `Deactivate ${s.name}? They will be excluded from unpaid lists.`
                                 : `Activate ${s.name}?`
                             }
                             className="btn-ghost"

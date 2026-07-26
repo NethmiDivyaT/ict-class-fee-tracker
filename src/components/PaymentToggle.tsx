@@ -13,18 +13,22 @@ export function PaymentToggle({
   classId,
   year,
   month,
+  week = 0,
   isPaid,
   defaultAmount,
   paidOn,
+  periodLabel = "this month",
 }: {
   studentId: number;
   studentName: string;
   classId: number;
   year: number;
   month: number;
+  week?: number;
   isPaid: boolean;
   defaultAmount: number;
   paidOn?: string | null;
+  periodLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [paidDate, setPaidDate] = useState(paidOn || todayLocal());
@@ -34,6 +38,16 @@ export function PaymentToggle({
   function close() {
     setOpen(false);
     setError(null);
+  }
+
+  function baseFormData() {
+    const fd = new FormData();
+    fd.set("student_id", String(studentId));
+    fd.set("class_id", String(classId));
+    fd.set("year", String(year));
+    fd.set("month", String(month));
+    fd.set("week", String(week));
+    return fd;
   }
 
   return (
@@ -56,12 +70,7 @@ export function PaymentToggle({
               return;
             }
             startTransition(async () => {
-              const fd = new FormData();
-              fd.set("student_id", String(studentId));
-              fd.set("class_id", String(classId));
-              fd.set("year", String(year));
-              fd.set("month", String(month));
-              await markUnpaid(fd);
+              await markUnpaid(baseFormData());
             });
             return;
           }
@@ -84,7 +93,7 @@ export function PaymentToggle({
               Save payment
             </h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Student name and paying date will be stored for this month.
+              Student name and paying date will be stored for {periodLabel}.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -92,7 +101,11 @@ export function PaymentToggle({
                 <label className="mb-1 block text-sm font-medium">
                   Student name
                 </label>
-                <input className="field bg-[var(--surface)]" value={studentName} readOnly />
+                <input
+                  className="field bg-[var(--surface)]"
+                  value={studentName}
+                  readOnly
+                />
               </div>
               <div>
                 <label
@@ -136,11 +149,7 @@ export function PaymentToggle({
                 disabled={pending || !paidDate}
                 onClick={() => {
                   startTransition(async () => {
-                    const fd = new FormData();
-                    fd.set("student_id", String(studentId));
-                    fd.set("class_id", String(classId));
-                    fd.set("year", String(year));
-                    fd.set("month", String(month));
+                    const fd = baseFormData();
                     fd.set("amount", String(defaultAmount));
                     fd.set("paid_on", paidDate);
                     const result = await markPaid(fd);

@@ -3,18 +3,27 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { createClass, updateClass, type ActionResult } from "@/lib/actions";
+import type { BillingPeriod } from "@/lib/db";
 
 export function ClassForm({
   mode = "create",
   initial,
 }: {
   mode?: "create" | "edit";
-  initial?: { id: number; name: string; monthly_fee: number };
+  initial?: {
+    id: number;
+    name: string;
+    monthly_fee: number;
+    billing_period?: BillingPeriod;
+  };
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(
+    initial?.billing_period === "weekly" ? "weekly" : "monthly",
+  );
 
   return (
     <form
@@ -33,6 +42,7 @@ export function ClassForm({
           setError(null);
           if (mode === "create") {
             formRef.current?.reset();
+            setBillingPeriod("monthly");
             if (result.id) {
               router.push(`/classes/${result.id}`);
               return;
@@ -46,16 +56,49 @@ export function ClassForm({
         <input type="hidden" name="id" value={initial.id} />
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium" htmlFor="class-name">
+            Class name
+          </label>
+          <input
+            id="class-name"
+            className="field"
+            name="name"
+            placeholder="e.g. Grade 10 ICT"
+            defaultValue={initial?.name}
+            required
+          />
+        </div>
+        <div>
+          <label
+            className="mb-1.5 block text-sm font-medium"
+            htmlFor="billing-period"
+          >
+            Billing period
+          </label>
+          <select
+            id="billing-period"
+            className="field"
+            name="billing_period"
+            value={billingPeriod}
+            onChange={(e) =>
+              setBillingPeriod(e.target.value === "weekly" ? "weekly" : "monthly")
+            }
+          >
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium" htmlFor="class-fee">
+          {billingPeriod === "weekly" ? "Weekly fee (LKR)" : "Monthly fee (LKR)"}
+        </label>
         <input
-          className="field"
-          name="name"
-          placeholder="Class name (e.g. Grade 10 ICT)"
-          defaultValue={initial?.name}
-          required
-        />
-        <input
-          className="field"
+          id="class-fee"
+          className="field max-w-xs"
           name="monthly_fee"
           type="number"
           min={0}

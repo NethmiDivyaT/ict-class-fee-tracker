@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { MonthPicker } from "@/components/MonthPicker";
 import { StatCard } from "@/components/StatCard";
-import { formatLKR, monthLabel, parsePeriod } from "@/lib/format";
+import { formatLKR, monthLabel, parsePeriod, weekLabel } from "@/lib/format";
 import {
   getAnnualStats,
   getClassMonthlyStats,
@@ -94,7 +94,7 @@ export default async function DashboardPage({
           {byClass.length === 0 ? (
             <EmptyState
               title="No classes yet"
-              body="Create a class, add students, then mark monthly fees as paid."
+              body="Create a class, add students, then mark fees as paid."
               href="/classes"
               cta="Add a class"
             />
@@ -120,12 +120,28 @@ export default async function DashboardPage({
                           {row.name}
                         </Link>
                         <p className="text-xs text-[var(--muted)]">
-                          Fee {formatLKR(row.monthly_fee)} · {row.active_students}{" "}
-                          active
+                          <span
+                            className={`badge mr-1 ${
+                              row.billing_period === "weekly"
+                                ? "badge-unpaid"
+                                : "badge-paid"
+                            }`}
+                          >
+                            {row.billing_period === "weekly"
+                              ? "Weekly"
+                              : "Monthly"}
+                          </span>
+                          Fee {formatLKR(row.monthly_fee)}
+                          {row.billing_period === "weekly" ? "/wk" : "/mo"} ·{" "}
+                          {row.active_students} active
                         </p>
                       </td>
                       <td>{row.paid_students}</td>
-                      <td>{row.unpaid_students}</td>
+                      <td>
+                        {row.billing_period === "weekly"
+                          ? "—"
+                          : row.unpaid_students}
+                      </td>
                       <td>{formatLKR(row.income)}</td>
                     </tr>
                   ))}
@@ -151,7 +167,10 @@ export default async function DashboardPage({
                     <div>
                       <p className="font-medium">{p.student_name}</p>
                       <p className="text-xs text-[var(--muted)]">
-                        {p.class_name} · {monthLabel(p.year, p.month)}
+                        {p.class_name} ·{" "}
+                        {p.week > 0
+                          ? weekLabel(p.year, p.week)
+                          : monthLabel(p.year, p.month)}
                       </p>
                     </div>
                     <div className="text-right">

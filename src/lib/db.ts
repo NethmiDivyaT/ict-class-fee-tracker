@@ -17,8 +17,10 @@ declare global {
   // eslint-disable-next-line no-var
   var __feeRemoteDb: Client | undefined;
   // eslint-disable-next-line no-var
-  var __feeMigrated: boolean | undefined;
+  var __feeSchemaReady: boolean | undefined;
 }
+
+export type BillingPeriod = "monthly" | "weekly";
 
 export class DatabaseConfigError extends Error {
   constructor(message: string) {
@@ -92,6 +94,7 @@ const MIGRATION_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     monthly_fee INTEGER NOT NULL DEFAULT 0 CHECK (monthly_fee >= 0),
+    billing_period TEXT NOT NULL DEFAULT 'monthly' CHECK (billing_period IN ('monthly', 'weekly')),
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
 
@@ -110,59 +113,108 @@ const MIGRATION_SQL = `
     student_name TEXT NOT NULL DEFAULT '',
     year INTEGER NOT NULL CHECK (year >= 2000),
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+    week INTEGER NOT NULL DEFAULT 0 CHECK (week BETWEEN 0 AND 53),
     amount INTEGER NOT NULL CHECK (amount >= 0),
     paid_on TEXT NOT NULL DEFAULT (date('now', 'localtime')),
     note TEXT,
-    UNIQUE (student_id, year, month)
+    UNIQUE (student_id, year, month, week)
   );
 
   CREATE INDEX IF NOT EXISTS idx_students_class ON students(class_id);
-  CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(year, month);
+  CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(year, month, week);
   CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 `;
 
-async function ensureStudentNameColumn(mode: "remote" | "local") {
+async function tableColumns(
+  mode: "remote" | "local",
+  table: string,
+): Promise<string[]> {
   if (mode === "local") {
-    const db = getLocalDb();
-    const cols = db.prepare(`PRAGMA table_info(payments)`).all() as Array<{
-      name: string;
-    }>;
-    if (!cols.some((c) => c.name === "student_name")) {
-      db.exec(
-        `ALTER TABLE payments ADD COLUMN student_name TEXT NOT NULL DEFAULT ''`,
-      );
-      db.exec(`
-        UPDATE payments
-        SET student_name = COALESCE(
-          (SELECT name FROM students WHERE students.id = payments.student_id),
-          ''
-        )
-        WHERE student_name = '' OR student_name IS NULL
-      `);
-    }
+    const cols = getLocalDb()
+      .prepare(`PRAGMA table_info(${table})`)
+      .all() as Array<{ name: string }>;
+    return cols.map((c) => c.name);
+  }
+  const info = await getRemoteDb().execute(`PRAGMA table_info(${table})`);
+  return info.rows.map((row) => String(row.name));
+}
+
+async function execSql(mode: "remote" | "local", sql: string) {
+  if (mode === "local") {
+    getLocalDb().exec(sql);
     return;
   }
+  await getRemoteDb().execute(sql);
+}
 
-  const client = getRemoteDb();
-  const info = await client.execute(`PRAGMA table_info(payments)`);
-  const hasColumn = info.rows.some((row) => row.name === "student_name");
-  if (!hasColumn) {
-    await client.execute(
+async function ensureSchemaUpgrades(mode: "remote" | "local") {
+  const classCols = await tableColumns(mode, "classes");
+  if (!classCols.includes("billing_period")) {
+    await execSql(
+      mode,
+      `ALTER TABLE classes ADD COLUMN billing_period TEXT NOT NULL DEFAULT 'monthly'`,
+    );
+  }
+
+  const paymentCols = await tableColumns(mode, "payments");
+  if (!paymentCols.includes("student_name")) {
+    await execSql(
+      mode,
       `ALTER TABLE payments ADD COLUMN student_name TEXT NOT NULL DEFAULT ''`,
     );
-    await client.execute(`
-      UPDATE payments
-      SET student_name = COALESCE(
-        (SELECT name FROM students WHERE students.id = payments.student_id),
-        ''
-      )
-      WHERE student_name = '' OR student_name IS NULL
-    `);
+    await execSql(
+      mode,
+      `UPDATE payments
+       SET student_name = COALESCE(
+         (SELECT name FROM students WHERE students.id = payments.student_id),
+         ''
+       )
+       WHERE student_name = '' OR student_name IS NULL`,
+    );
+  }
+
+  if (!paymentCols.includes("week")) {
+    // Rebuild payments so UNIQUE(student_id, year, month, week) replaces old unique.
+    await execSql(
+      mode,
+      `
+      CREATE TABLE IF NOT EXISTS payments_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        student_name TEXT NOT NULL DEFAULT '',
+        year INTEGER NOT NULL CHECK (year >= 2000),
+        month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+        week INTEGER NOT NULL DEFAULT 0 CHECK (week BETWEEN 0 AND 53),
+        amount INTEGER NOT NULL CHECK (amount >= 0),
+        paid_on TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+        note TEXT,
+        UNIQUE (student_id, year, month, week)
+      );
+      `,
+    );
+    await execSql(
+      mode,
+      `
+      INSERT INTO payments_v2 (id, student_id, student_name, year, month, week, amount, paid_on, note)
+      SELECT id, student_id, COALESCE(student_name, ''), year, month, 0, amount, paid_on, note
+      FROM payments;
+      `,
+    );
+    await execSql(mode, `DROP TABLE payments;`);
+    await execSql(mode, `ALTER TABLE payments_v2 RENAME TO payments;`);
+    await execSql(
+      mode,
+      `CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(year, month, week);`,
+    );
+    await execSql(
+      mode,
+      `CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);`,
+    );
   }
 }
 
 async function migrate() {
-  if (globalThis.__feeMigrated) return;
+  if (globalThis.__feeSchemaReady) return;
 
   const mode = getDatabaseMode();
   if (mode === "local") {
@@ -178,8 +230,8 @@ async function migrate() {
     await client.batch(statements, "write");
   }
 
-  await ensureStudentNameColumn(mode);
-  globalThis.__feeMigrated = true;
+  await ensureSchemaUpgrades(mode);
+  globalThis.__feeSchemaReady = true;
 }
 
 export async function sqlAll<T>(sql: string, args: InArgs = []): Promise<T[]> {
@@ -232,6 +284,7 @@ export type ClassRow = {
   id: number;
   name: string;
   monthly_fee: number;
+  billing_period: BillingPeriod;
   created_at: string;
 };
 
@@ -250,6 +303,7 @@ export type PaymentRow = {
   student_name: string;
   year: number;
   month: number;
+  week: number;
   amount: number;
   paid_on: string;
   note: string | null;
