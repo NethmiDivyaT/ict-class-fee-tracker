@@ -7,24 +7,24 @@ export function StatCard({
   label: string;
   value: string;
   hint?: string;
-  tone?: "default" | "good" | "warn" | "accent";
+  tone?: "default" | "good" | "warn" | "accent" | "coral" | "gold";
 }) {
   const tones = {
-    default: "border-[var(--line)]",
-    good: "border-emerald-200 bg-emerald-50/70",
-    warn: "border-amber-200 bg-amber-50/70",
-    accent: "border-sky-200 bg-sky-50/70",
+    default: "stat-default",
+    good: "stat-good",
+    warn: "stat-warn",
+    accent: "stat-accent",
+    coral: "stat-coral",
+    gold: "stat-gold",
   };
 
   return (
-    <div className={`rounded-xl border p-4 shadow-sm ${tones[tone]}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+    <div className={`stat-card ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--ink)]">
-        {value}
-      </p>
-      {hint ? <p className="mt-1 text-sm text-[var(--muted)]">{hint}</p> : null}
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      {hint ? <p className="mt-1 text-sm opacity-75">{hint}</p> : null}
     </div>
   );
 }

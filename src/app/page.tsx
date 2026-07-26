@@ -4,6 +4,7 @@ import { MonthPicker } from "@/components/MonthPicker";
 import { StatCard } from "@/components/StatCard";
 import { formatLKR, monthLabel, parsePeriod } from "@/lib/format";
 import {
+  getAnnualStats,
   getClassMonthlyStats,
   getMonthlyStats,
   listRecentPayments,
@@ -18,55 +19,68 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams;
   const { year, month } = parsePeriod(params);
-  const [stats, byClass, recent] = await Promise.all([
+  const [stats, byClass, recent, annual] = await Promise.all([
     getMonthlyStats(year, month),
     getClassMonthlyStats(year, month),
     listRecentPayments(),
+    getAnnualStats(year),
   ]);
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1
-            className="text-3xl font-semibold tracking-tight text-[var(--ink)]"
-            style={{ fontFamily: "var(--font-display), serif" }}
-          >
-            Monthly overview
-          </h1>
-          <p className="mt-1 text-[var(--muted)]">
-            Income and payment status for {monthLabel(year, month)}
-          </p>
+      <section className="page-hero anim-fade-up">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="eyebrow">Dashboard</p>
+            <h1
+              className="mt-1 text-3xl font-semibold tracking-tight text-[var(--ink)]"
+              style={{ fontFamily: "var(--font-display), serif" }}
+            >
+              Monthly overview
+            </h1>
+            <p className="mt-1 text-[var(--muted)]">
+              Income and payment status for {monthLabel(year, month)}
+            </p>
+          </div>
+          <Suspense fallback={<div className="field w-48 animate-pulse" />}>
+            <MonthPicker year={year} month={month} />
+          </Suspense>
         </div>
-        <Suspense fallback={<div className="field w-48 animate-pulse" />}>
-          <MonthPicker year={year} month={month} />
-        </Suspense>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Total income"
-          value={formatLKR(stats.total_income)}
-          hint={`Expected ${formatLKR(stats.expected_income)}`}
-          tone="accent"
-        />
-        <StatCard
-          label="Paid students"
-          value={String(stats.paid_students)}
-          hint={`of ${stats.active_students} active`}
-          tone="good"
-        />
-        <StatCard
-          label="Unpaid students"
-          value={String(stats.unpaid_students)}
-          hint="Still due this month"
-          tone="warn"
-        />
-        <StatCard
-          label="Outstanding"
-          value={formatLKR(stats.outstanding)}
-          hint="Expected minus collected"
-        />
+        <div className="anim-fade-up delay-1">
+          <StatCard
+            label="Total income"
+            value={formatLKR(stats.total_income)}
+            hint={`Expected ${formatLKR(stats.expected_income)}`}
+            tone="accent"
+          />
+        </div>
+        <div className="anim-fade-up delay-2">
+          <StatCard
+            label="Paid students"
+            value={String(stats.paid_students)}
+            hint={`of ${stats.active_students} active`}
+            tone="good"
+          />
+        </div>
+        <div className="anim-fade-up delay-3">
+          <StatCard
+            label="Unpaid students"
+            value={String(stats.unpaid_students)}
+            hint="Still due this month"
+            tone="warn"
+          />
+        </div>
+        <div className="anim-fade-up delay-4">
+          <StatCard
+            label={`${year} annual income`}
+            value={formatLKR(annual.total_income)}
+            hint={`${annual.payment_count} payments this year`}
+            tone="gold"
+          />
+        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -154,19 +168,29 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="panel p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-semibold">Need the unpaid list?</h2>
-            <p className="text-sm text-[var(--muted)]">
-              Open records to filter paid and unpaid students for this month.
-            </p>
-          </div>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="panel p-4 sm:p-5 anim-fade-up delay-3">
+          <h2 className="font-semibold">Unpaid this month?</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Filter paid and unpaid students for {monthLabel(year, month)}.
+          </p>
           <Link
             href={`/records?year=${year}&month=${month}&status=unpaid`}
-            className="btn-primary inline-flex justify-center"
+            className="btn-primary mt-4 inline-flex"
           >
             View unpaid
+          </Link>
+        </div>
+        <div className="panel p-4 sm:p-5 anim-fade-up delay-4">
+          <h2 className="font-semibold">Annual income report</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            See full-year totals, monthly chart, and class breakdown for {year}.
+          </p>
+          <Link
+            href={`/reports?year=${year}`}
+            className="btn-primary mt-4 inline-flex"
+          >
+            Open report
           </Link>
         </div>
       </section>

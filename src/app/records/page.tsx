@@ -61,22 +61,25 @@ export default async function RecordsPage({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1
-            className="text-3xl font-semibold tracking-tight"
-            style={{ fontFamily: "var(--font-display), serif" }}
-          >
-            Payment records
-          </h1>
-          <p className="mt-1 text-[var(--muted)]">
-            {monthLabel(year, month)} · {paidCount} paid · {unpaidCount} unpaid
-            · {formatLKR(income)} collected
-          </p>
+      <section className="page-hero anim-fade-up">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="eyebrow">Records</p>
+            <h1
+              className="mt-1 text-3xl font-semibold tracking-tight"
+              style={{ fontFamily: "var(--font-display), serif" }}
+            >
+              Payment records
+            </h1>
+            <p className="mt-1 text-[var(--muted)]">
+              {monthLabel(year, month)} · {paidCount} paid · {unpaidCount} unpaid
+              · {formatLKR(income)} collected
+            </p>
+          </div>
+          <Suspense fallback={null}>
+            <MonthPicker year={year} month={month} />
+          </Suspense>
         </div>
-        <Suspense fallback={null}>
-          <MonthPicker year={year} month={month} />
-        </Suspense>
       </section>
 
       <section className="panel p-4">

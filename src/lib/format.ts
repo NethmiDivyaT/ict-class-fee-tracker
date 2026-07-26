@@ -33,3 +33,24 @@ export function parsePeriod(searchParams: {
         : fallback.month,
   };
 }
+
+export function parseYear(searchParams: { year?: string }): number {
+  const year = Number(searchParams.year);
+  const fallback = currentPeriod().year;
+  return Number.isFinite(year) && year >= 2000 ? year : fallback;
+}
+
+export const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];

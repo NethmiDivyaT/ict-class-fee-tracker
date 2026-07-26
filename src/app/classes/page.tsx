@@ -12,12 +12,13 @@ export default async function ClassesPage() {
 
   return (
     <div className="space-y-6">
-      <section>
+      <section className="page-hero anim-fade-up">
+        <p className="eyebrow">Classes</p>
         <h1
-          className="text-3xl font-semibold tracking-tight"
+          className="mt-1 text-3xl font-semibold tracking-tight"
           style={{ fontFamily: "var(--font-display), serif" }}
         >
-          Classes
+          Classes & students
         </h1>
         <p className="mt-1 text-[var(--muted)]">
           Add a class with its students, then mark paid with student name and paying date.

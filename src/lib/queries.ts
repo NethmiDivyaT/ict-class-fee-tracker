@@ -193,3 +193,109 @@ export async function listRecentPayments(
     [limit],
   );
 }
+
+export type AnnualStats = {
+  year: number;
+  total_income: number;
+  payment_count: number;
+  students_paid: number;
+  best_month: number | null;
+  best_month_income: number;
+};
+
+export type MonthIncome = {
+  month: number;
+  income: number;
+  payment_count: number;
+};
+
+export type ClassAnnualStat = {
+  id: number;
+  name: string;
+  income: number;
+  payment_count: number;
+  students_paid: number;
+};
+
+export async function getAnnualStats(year: number): Promise<AnnualStats> {
+  const summary = (await sqlGet<{
+    total_income: number;
+    payment_count: number;
+    students_paid: number;
+  }>(
+    `SELECT
+      COALESCE(SUM(amount), 0) AS total_income,
+      COUNT(*) AS payment_count,
+      COUNT(DISTINCT student_id) AS students_paid
+     FROM payments
+     WHERE year = ?`,
+    [year],
+  )) ?? {
+    total_income: 0,
+    payment_count: 0,
+    students_paid: 0,
+  };
+
+  const best = await sqlGet<{ month: number; income: number }>(
+    `SELECT month, COALESCE(SUM(amount), 0) AS income
+     FROM payments
+     WHERE year = ?
+     GROUP BY month
+     ORDER BY income DESC
+     LIMIT 1`,
+    [year],
+  );
+
+  return {
+    year,
+    ...summary,
+    best_month: best?.month ?? null,
+    best_month_income: best?.income ?? 0,
+  };
+}
+
+export async function getMonthlyIncomeForYear(
+  year: number,
+): Promise<MonthIncome[]> {
+  const rows = await sqlAll<MonthIncome>(
+    `SELECT month,
+      COALESCE(SUM(amount), 0) AS income,
+      COUNT(*) AS payment_count
+     FROM payments
+     WHERE year = ?
+     GROUP BY month
+     ORDER BY month`,
+    [year],
+  );
+
+  const byMonth = new Map(rows.map((r) => [r.month, r]));
+  return Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    return (
+      byMonth.get(month) ?? {
+        month,
+        income: 0,
+        payment_count: 0,
+      }
+    );
+  });
+}
+
+export async function getClassAnnualStats(
+  year: number,
+): Promise<ClassAnnualStat[]> {
+  return sqlAll<ClassAnnualStat>(
+    `SELECT
+      c.id,
+      c.name,
+      COALESCE(SUM(p.amount), 0) AS income,
+      COUNT(p.id) AS payment_count,
+      COUNT(DISTINCT p.student_id) AS students_paid
+     FROM classes c
+     LEFT JOIN students s ON s.class_id = c.id
+     LEFT JOIN payments p ON p.student_id = s.id AND p.year = ?
+     GROUP BY c.id
+     ORDER BY income DESC, c.name COLLATE NOCASE`,
+    [year],
+  );
+}
