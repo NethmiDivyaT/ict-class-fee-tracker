@@ -281,6 +281,94 @@ table.data tr:last-child td {
   color: #1d4f9c;
 }
 
+.pay-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgb(15 30 45 / 45%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pay-modal-sheet {
+  width: 100%;
+  max-width: 28rem;
+  max-height: min(92dvh, 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-bottom: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: #fff;
+  box-shadow: 0 -12px 40px rgb(18 48 73 / 18%);
+  padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  animation: sheet-up 220ms ease both;
+}
+
+.pay-modal-handle {
+  width: 2.5rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #d5e0e8;
+  margin: 0.15rem auto 0.85rem;
+}
+
+.pay-date-input {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+.pay-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+}
+
+.pay-modal-actions > button {
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+@keyframes sheet-up {
+  from {
+    opacity: 0.6;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .pay-modal-overlay {
+    align-items: center;
+    padding: 1.25rem;
+  }
+
+  .pay-modal-sheet {
+    border-radius: 1.1rem;
+    border-bottom: 1px solid rgb(255 255 255 / 70%);
+    padding: 1.25rem;
+    max-height: min(85vh, 40rem);
+    animation: rise-in 220ms ease both;
+  }
+
+  .pay-modal-handle {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-modal-sheet {
+    animation: none !important;
+  }
+}
+
 .stat-card {
   border-radius: 1rem;
   padding: 1rem 1.05rem;

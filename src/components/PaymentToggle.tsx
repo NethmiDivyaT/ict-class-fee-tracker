@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { markPaid, markUnpaid } from "@/lib/actions";
 
 function todayLocal() {
@@ -31,9 +32,23 @@ export function PaymentToggle({
   periodLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [paidDate, setPaidDate] = useState(paidOn || todayLocal());
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   function close() {
     setOpen(false);
@@ -49,6 +64,106 @@ export function PaymentToggle({
     fd.set("week", String(week));
     return fd;
   }
+
+  const dialog =
+    open && mounted
+      ? createPortal(
+          <div
+            className="pay-modal-overlay"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) close();
+            }}
+          >
+            <div
+              className="pay-modal-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`pay-title-${studentId}`}
+            >
+              <div className="pay-modal-handle" aria-hidden />
+              <h3
+                id={`pay-title-${studentId}`}
+                className="text-lg font-semibold"
+              >
+                Save payment
+              </h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Student name and paying date will be stored for {periodLabel}.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Student name
+                  </label>
+                  <input
+                    className="field bg-[var(--surface)]"
+                    value={studentName}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor={`paid-on-${studentId}`}
+                    className="mb-1 block text-sm font-medium"
+                  >
+                    Paying date
+                  </label>
+                  <input
+                    id={`paid-on-${studentId}`}
+                    type="date"
+                    className="field pay-date-input"
+                    value={paidDate}
+                    onChange={(e) => setPaidDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Amount (LKR)
+                  </label>
+                  <input
+                    className="field bg-[var(--surface)]"
+                    value={defaultAmount}
+                    readOnly
+                  />
+                </div>
+              </div>
+
+              {error ? (
+                <p className="mt-3 text-sm text-red-600">{error}</p>
+              ) : null}
+
+              <div className="pay-modal-actions">
+                <button type="button" className="btn-ghost" onClick={close}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={pending || !paidDate}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const fd = baseFormData();
+                      fd.set("amount", String(defaultAmount));
+                      fd.set("paid_on", paidDate);
+                      const result = await markPaid(fd);
+                      if (!result.ok) {
+                        setError(result.error);
+                        return;
+                      }
+                      close();
+                    });
+                  }}
+                >
+                  {pending ? "Saving…" : "Save payment"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className="w-full md:w-auto">
@@ -74,99 +189,13 @@ export function PaymentToggle({
             });
             return;
           }
-          setPaidDate(todayLocal());
+          setPaidDate(paidOn || todayLocal());
           setOpen(true);
         }}
       >
         {pending ? "Saving…" : isPaid ? "Paid" : "Mark paid"}
       </button>
-
-      {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 sm:items-center">
-          <div
-            className="panel w-full max-w-md p-4 sm:p-5"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pay-title"
-          >
-            <h3 id="pay-title" className="text-lg font-semibold">
-              Save payment
-            </h3>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Student name and paying date will be stored for {periodLabel}.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Student name
-                </label>
-                <input
-                  className="field bg-[var(--surface)]"
-                  value={studentName}
-                  readOnly
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor={`paid-on-${studentId}`}
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Paying date
-                </label>
-                <input
-                  id={`paid-on-${studentId}`}
-                  type="date"
-                  className="field"
-                  value={paidDate}
-                  onChange={(e) => setPaidDate(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Amount (LKR)
-                </label>
-                <input
-                  className="field bg-[var(--surface)]"
-                  value={defaultAmount}
-                  readOnly
-                />
-              </div>
-            </div>
-
-            {error ? (
-              <p className="mt-3 text-sm text-red-600">{error}</p>
-            ) : null}
-
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <button type="button" className="btn-ghost" onClick={close}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={pending || !paidDate}
-                onClick={() => {
-                  startTransition(async () => {
-                    const fd = baseFormData();
-                    fd.set("amount", String(defaultAmount));
-                    fd.set("paid_on", paidDate);
-                    const result = await markPaid(fd);
-                    if (!result.ok) {
-                      setError(result.error);
-                      return;
-                    }
-                    close();
-                  });
-                }}
-              >
-                {pending ? "Saving…" : "Save payment"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {dialog}
     </div>
   );
 }
