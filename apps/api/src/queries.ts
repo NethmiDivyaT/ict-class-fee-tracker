@@ -1,11 +1,16 @@
 import {
+  getClassWeekAttendance,
+  getStudentBilling,
+  type FeeSlot,
+} from "./billing.ts";
+import {
   sqlAll,
   sqlGet,
   type BillingPeriod,
   type ClassRow,
   type PaymentRow,
   type StudentRow,
-} from "./db";
+} from "./db.ts";
 
 export type ClassWithCounts = ClassRow & {
   student_count: number;
@@ -21,6 +26,12 @@ export type StudentWithPayment = StudentRow & {
   paid_on: string | null;
   paid_student_name: string | null;
   is_paid: number;
+  attended: number;
+  attendance_days: number;
+  leftover_days: number;
+  billable_months: number;
+  unpaid_months: number;
+  unpaid_slots: FeeSlot[];
 };
 
 export type MonthlyStats = {
@@ -62,13 +73,44 @@ export async function getClass(id: number): Promise<ClassRow | undefined> {
   return sqlGet<ClassRow>(`SELECT * FROM classes WHERE id = ?`, [id]);
 }
 
+async function withAttendanceAndBilling(
+  rows: StudentWithPayment[],
+  classId: number,
+  year: number,
+  week: number,
+): Promise<StudentWithPayment[]> {
+  const weekAttendance =
+    week > 0 ? await getClassWeekAttendance(classId, year, week) : [];
+  const byStudent = new Map(weekAttendance.map((row) => [row.student_id, row]));
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const billing =
+        row.billing_period === "monthly"
+          ? await getStudentBilling(row.id)
+          : null;
+      const present = byStudent.get(row.id);
+      const unpaid = billing?.slots.filter((slot) => !slot.paid) ?? [];
+      return {
+        ...row,
+        attended: present?.attended ? 1 : 0,
+        attendance_days: billing?.attendance_days ?? 0,
+        leftover_days: billing?.leftover_days ?? 0,
+        billable_months: billing?.billable_months ?? 0,
+        unpaid_months: billing?.unpaid_months ?? unpaid.length,
+        unpaid_slots: unpaid,
+      };
+    }),
+  );
+}
+
 export async function listStudentsByClass(
   classId: number,
   year: number,
   month: number,
   week = 0,
 ): Promise<StudentWithPayment[]> {
-  return sqlAll<StudentWithPayment>(
+  const rows = await sqlAll<StudentWithPayment>(
     `SELECT s.*,
       c.name AS class_name,
       c.monthly_fee,
@@ -89,6 +131,7 @@ export async function listStudentsByClass(
      ORDER BY s.active DESC, s.name COLLATE NOCASE`,
     [year, month, week, classId],
   );
+  return withAttendanceAndBilling(rows, classId, year, week);
 }
 
 export async function listStudentsForPeriod(
@@ -124,7 +167,7 @@ export async function listStudentsForPeriod(
     filters.push("p.id IS NULL");
   }
 
-  return sqlAll<StudentWithPayment>(
+  const rows = await sqlAll<StudentWithPayment>(
     `SELECT s.*,
       c.name AS class_name,
       c.monthly_fee,
@@ -145,18 +188,30 @@ export async function listStudentsForPeriod(
      ORDER BY c.name COLLATE NOCASE, s.name COLLATE NOCASE`,
     params,
   );
-}
 
-/** @deprecated use listStudentsForPeriod */
-export async function listStudentsForMonth(
-  year: number,
-  month: number,
-  opts?: { classId?: number; status?: "paid" | "unpaid" | "all" },
-): Promise<StudentWithPayment[]> {
-  return listStudentsForPeriod(year, month, 0, {
-    ...opts,
-    billingPeriod: "monthly",
-  });
+  const classId = opts?.classId;
+  if (!classId) {
+    return Promise.all(
+      rows.map(async (row) => {
+        const billing =
+          row.billing_period === "monthly"
+            ? await getStudentBilling(row.id)
+            : null;
+        const unpaid = billing?.slots.filter((slot) => !slot.paid) ?? [];
+        return {
+          ...row,
+          attended: 0,
+          attendance_days: billing?.attendance_days ?? 0,
+          leftover_days: billing?.leftover_days ?? 0,
+          billable_months: billing?.billable_months ?? 0,
+          unpaid_months: billing?.unpaid_months ?? 0,
+          unpaid_slots: unpaid,
+        };
+      }),
+    );
+  }
+
+  return withAttendanceAndBilling(rows, classId, year, week);
 }
 
 export async function getMonthlyStats(

@@ -12,11 +12,8 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "fees.db");
 
 declare global {
-  // eslint-disable-next-line no-var
   var __feeLocalDb: DatabaseSync | undefined;
-  // eslint-disable-next-line no-var
   var __feeRemoteDb: Client | undefined;
-  // eslint-disable-next-line no-var
   var __feeSchemaReady: boolean | undefined;
 }
 
@@ -46,7 +43,7 @@ export function getDatabaseMode(): "remote" | "local" {
   if (isRemoteUrl(process.env.TURSO_DATABASE_URL)) return "remote";
   if (isVercel()) {
     throw new DatabaseConfigError(
-      "Local SQLite cannot run on Vercel. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the Vercel project environment variables.",
+      "Local SQLite cannot run on Vercel. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the API environment variables.",
     );
   }
   return "local";
@@ -114,15 +111,28 @@ const MIGRATION_SQL = `
     year INTEGER NOT NULL CHECK (year >= 2000),
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
     week INTEGER NOT NULL DEFAULT 0 CHECK (week BETWEEN 0 AND 53),
+    slot INTEGER NOT NULL DEFAULT 0 CHECK (slot >= 0),
     amount INTEGER NOT NULL CHECK (amount >= 0),
     paid_on TEXT NOT NULL DEFAULT (date('now', 'localtime')),
     note TEXT,
-    UNIQUE (student_id, year, month, week)
+    UNIQUE (student_id, year, month, week, slot)
+  );
+
+  CREATE TABLE IF NOT EXISTS attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    year INTEGER NOT NULL CHECK (year >= 2000),
+    week INTEGER NOT NULL CHECK (week BETWEEN 1 AND 53),
+    attended INTEGER NOT NULL DEFAULT 1 CHECK (attended IN (0, 1)),
+    attended_on TEXT NOT NULL,
+    UNIQUE (student_id, year, week)
   );
 
   CREATE INDEX IF NOT EXISTS idx_students_class ON students(class_id);
   CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(year, month, week);
   CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
+  CREATE INDEX IF NOT EXISTS idx_attendance_week ON attendance(year, week);
+  CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id);
 `;
 
 async function tableColumns(
@@ -174,7 +184,6 @@ async function ensureSchemaUpgrades(mode: "remote" | "local") {
   }
 
   if (!paymentCols.includes("week")) {
-    // Rebuild payments so UNIQUE(student_id, year, month, week) replaces old unique.
     await execSql(
       mode,
       `
@@ -211,12 +220,66 @@ async function ensureSchemaUpgrades(mode: "remote" | "local") {
       `CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);`,
     );
   }
+
+  const paymentColsAfter = await tableColumns(mode, "payments");
+  if (!paymentColsAfter.includes("slot")) {
+    await execSql(
+      mode,
+      `
+      CREATE TABLE IF NOT EXISTS payments_v3 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        student_name TEXT NOT NULL DEFAULT '',
+        year INTEGER NOT NULL CHECK (year >= 2000),
+        month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+        week INTEGER NOT NULL DEFAULT 0 CHECK (week BETWEEN 0 AND 53),
+        slot INTEGER NOT NULL DEFAULT 0 CHECK (slot >= 0),
+        amount INTEGER NOT NULL CHECK (amount >= 0),
+        paid_on TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+        note TEXT,
+        UNIQUE (student_id, year, month, week, slot)
+      );
+      `,
+    );
+    await execSql(
+      mode,
+      `
+      INSERT INTO payments_v3 (id, student_id, student_name, year, month, week, slot, amount, paid_on, note)
+      SELECT id, student_id, COALESCE(student_name, ''), year, month, week, 0, amount, paid_on, note
+      FROM payments;
+      `,
+    );
+    await execSql(mode, `DROP TABLE payments;`);
+    await execSql(mode, `ALTER TABLE payments_v3 RENAME TO payments;`);
+    await execSql(
+      mode,
+      `CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(year, month, week);`,
+    );
+    await execSql(
+      mode,
+      `CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);`,
+    );
+  }
 }
 
 async function migrate() {
-  if (globalThis.__feeSchemaReady) return;
-
   const mode = getDatabaseMode();
+  if (globalThis.__feeSchemaReady) {
+    await execSql(
+      mode,
+      `CREATE TABLE IF NOT EXISTS attendance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        year INTEGER NOT NULL CHECK (year >= 2000),
+        week INTEGER NOT NULL CHECK (week BETWEEN 1 AND 53),
+        attended INTEGER NOT NULL DEFAULT 1 CHECK (attended IN (0, 1)),
+        attended_on TEXT NOT NULL,
+        UNIQUE (student_id, year, week)
+      )`,
+    );
+    return;
+  }
+
   if (mode === "local") {
     const db = getLocalDb();
     db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
@@ -304,7 +367,17 @@ export type PaymentRow = {
   year: number;
   month: number;
   week: number;
+  slot: number;
   amount: number;
   paid_on: string;
   note: string | null;
+};
+
+export type AttendanceRow = {
+  id: number;
+  student_id: number;
+  year: number;
+  week: number;
+  attended: number;
+  attended_on: string;
 };

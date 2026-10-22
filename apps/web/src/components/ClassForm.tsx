@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { createClass, updateClass, type ActionResult } from "@/lib/actions";
-import type { BillingPeriod } from "@/lib/db";
+import { createClass, updateClass } from "@/lib/actions";
+import type { ActionResult, BillingPeriod } from "@/lib/types";
 
 export function ClassForm({
   mode = "create",

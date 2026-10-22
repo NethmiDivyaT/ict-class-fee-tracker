@@ -321,6 +321,29 @@ table.data tr:last-child td {
   font-size: 1rem;
 }
 
+.month-check-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.month-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.month-check input {
+  margin-top: 0.2rem;
+}
+
 .pay-modal-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

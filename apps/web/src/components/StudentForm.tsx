@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createStudent, type ActionResult } from "@/lib/actions";
+import { createStudent } from "@/lib/actions";
+import type { ActionResult } from "@/lib/types";
 
 export function StudentForm({ classId }: { classId: number }) {
   const formRef = useRef<HTMLFormElement>(null);

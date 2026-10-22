@@ -246,7 +246,9 @@ export default async function RecordsPage({
                         isPaid={Boolean(s.is_paid)}
                         defaultAmount={s.monthly_fee}
                         paidOn={s.paid_on}
-                        periodLabel={isWeeklyView ? "this week" : "this month"}
+                        periodLabel={isWeeklyView ? "this week" : "unpaid months"}
+                        mode={isWeeklyView ? "weekly" : "monthly"}
+                        unpaidSlots={s.unpaid_slots ?? []}
                       />
                     </td>
                   </tr>

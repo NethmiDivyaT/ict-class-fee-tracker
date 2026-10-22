@@ -21,8 +21,8 @@ export default async function ClassesPage() {
           Classes & students
         </h1>
         <p className="mt-1 text-[var(--muted)]">
-          Choose monthly or weekly billing per class, then mark paid with student
-          name and paying date.
+          Mark weekly attendance. Four present days count as one month. Late
+          payments auto-fill those months, and you can edit them.
         </p>
       </section>
 
