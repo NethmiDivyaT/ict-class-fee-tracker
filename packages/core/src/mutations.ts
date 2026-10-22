@@ -1,5 +1,5 @@
-import { sqlGet, sqlRun, type BillingPeriod } from "./db.ts";
-import { defaultAttendedOn, getISOWeekMonday } from "./format.ts";
+import { sqlGet, sqlRun, type BillingPeriod } from "./db";
+import { defaultAttendedOn, getISOWeekMonday } from "./format";
 
 export type ActionResult =
   | { ok: true; id?: number }

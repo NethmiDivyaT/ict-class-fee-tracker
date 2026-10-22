@@ -1,9 +1,20 @@
 "use server";
 
+import {
+  createClass as createClassRecord,
+  createStudent as createStudentRecord,
+  deleteClass as deleteClassRecord,
+  deleteStudent as deleteStudentRecord,
+  getStudentBilling,
+  markPaid as markPaidRecord,
+  markUnpaid as markUnpaidRecord,
+  setAttendance as setAttendanceRecord,
+  updateClass as updateClassRecord,
+  updateStudent as updateStudentRecord,
+  type ActionResult,
+  type StudentBilling,
+} from "@ict/core";
 import { revalidatePath } from "next/cache";
-import { apiMutate } from "./api";
-import { getStudentBilling } from "./queries";
-import type { ActionResult, StudentBilling } from "./types";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -13,7 +24,7 @@ function revalidateAll() {
 }
 
 export async function createClass(formData: FormData): Promise<ActionResult> {
-  const result = await apiMutate("/api/classes", "POST", {
+  const result = await createClassRecord({
     name: String(formData.get("name") || ""),
     monthly_fee: Number(formData.get("monthly_fee") || 0),
     billing_period: String(formData.get("billing_period") || "monthly"),
@@ -28,7 +39,8 @@ export async function createClass(formData: FormData): Promise<ActionResult> {
 
 export async function updateClass(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
-  const result = await apiMutate(`/api/classes/${id}`, "PATCH", {
+  const result = await updateClassRecord({
+    id,
     name: String(formData.get("name") || ""),
     monthly_fee: Number(formData.get("monthly_fee") || 0),
     billing_period: String(formData.get("billing_period") || "monthly"),
@@ -42,14 +54,15 @@ export async function updateClass(formData: FormData): Promise<ActionResult> {
 
 export async function deleteClass(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
-  const result = await apiMutate(`/api/classes/${id}`, "DELETE");
+  const result = await deleteClassRecord(id);
   if (result.ok) revalidateAll();
   return result;
 }
 
 export async function createStudent(formData: FormData): Promise<ActionResult> {
   const classId = Number(formData.get("class_id"));
-  const result = await apiMutate(`/api/classes/${classId}/students`, "POST", {
+  const result = await createStudentRecord({
+    class_id: classId,
     name: String(formData.get("name") || ""),
     phone: String(formData.get("phone") || ""),
   });
@@ -63,7 +76,8 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
 export async function updateStudent(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
   const classId = Number(formData.get("class_id"));
-  const result = await apiMutate(`/api/students/${id}`, "PATCH", {
+  const result = await updateStudentRecord({
+    id,
     name: String(formData.get("name") || ""),
     phone: String(formData.get("phone") || ""),
     active: String(formData.get("active") || "0"),
@@ -78,7 +92,7 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
 export async function deleteStudent(formData: FormData): Promise<ActionResult> {
   const id = Number(formData.get("id"));
   const classId = Number(formData.get("class_id"));
-  const result = await apiMutate(`/api/students/${id}`, "DELETE");
+  const result = await deleteStudentRecord(id);
   if (result.ok) {
     revalidateAll();
     if (classId) revalidatePath(`/classes/${classId}`);
@@ -96,7 +110,7 @@ export async function markPaid(formData: FormData): Promise<ActionResult> {
         week?: number;
       }>)
     : undefined;
-  const result = await apiMutate("/api/payments", "POST", {
+  const result = await markPaidRecord({
     student_id: Number(formData.get("student_id")),
     year: Number(formData.get("year")),
     month: Number(formData.get("month")),
@@ -125,7 +139,7 @@ export async function markUnpaid(formData: FormData): Promise<ActionResult> {
         week?: number;
       }>)
     : undefined;
-  const result = await apiMutate("/api/payments", "DELETE", {
+  const result = await markUnpaidRecord({
     student_id: Number(formData.get("student_id")),
     year: Number(formData.get("year")),
     month: Number(formData.get("month")),
@@ -149,7 +163,7 @@ export async function loadStudentBilling(
 
 export async function setAttendance(formData: FormData): Promise<ActionResult> {
   const classId = Number(formData.get("class_id"));
-  const result = await apiMutate("/api/attendance", "PUT", {
+  const result = await setAttendanceRecord({
     student_id: Number(formData.get("student_id")),
     year: Number(formData.get("year")),
     week: Number(formData.get("week")),

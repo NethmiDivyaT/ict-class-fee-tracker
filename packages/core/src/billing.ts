@@ -1,4 +1,4 @@
-import { sqlAll, type PaymentRow } from "./db.ts";
+import { sqlAll, type PaymentRow } from "./db";
 
 export const DAYS_PER_FEE_MONTH = 4;
 

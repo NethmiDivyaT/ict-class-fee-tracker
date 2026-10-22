@@ -2,7 +2,7 @@ import {
   getClassWeekAttendance,
   getStudentBilling,
   type FeeSlot,
-} from "./billing.ts";
+} from "./billing";
 import {
   sqlAll,
   sqlGet,
@@ -10,7 +10,7 @@ import {
   type ClassRow,
   type PaymentRow,
   type StudentRow,
-} from "./db.ts";
+} from "./db";
 
 export type ClassWithCounts = ClassRow & {
   student_count: number;

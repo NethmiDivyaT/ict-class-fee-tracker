@@ -8,7 +8,22 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+function resolveDataDir(): string {
+  if (process.env.SQLITE_DATA_DIR) {
+    return path.resolve(process.env.SQLITE_DATA_DIR);
+  }
+  const candidates = [
+    path.join(process.cwd(), "data"),
+    path.join(process.cwd(), "apps", "api", "data"),
+    path.join(process.cwd(), "..", "api", "data"),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "fees.db"))) return dir;
+  }
+  return candidates[0];
+}
+
+const DATA_DIR = resolveDataDir();
 const DB_PATH = path.join(DATA_DIR, "fees.db");
 
 declare global {

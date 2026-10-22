@@ -6,32 +6,30 @@ import express, {
   type RequestHandler,
   type Response,
 } from "express";
-import { DatabaseConfigError } from "./db.ts";
-import { getStudentBilling } from "./billing.ts";
 import {
+  DatabaseConfigError,
+  createClass,
+  createStudent,
+  deleteClass,
+  deleteStudent,
   getAnnualStats,
   getClass,
   getClassAnnualStats,
   getClassMonthlyStats,
   getMonthlyIncomeForYear,
   getMonthlyStats,
+  getStudentBilling,
   listClasses,
   listRecentPayments,
   listStudentsByClass,
   listStudentsForPeriod,
-} from "./queries.ts";
-import {
-  createClass,
-  createStudent,
-  deleteClass,
-  deleteStudent,
   markPaid,
   markUnpaid,
   setAttendance,
   updateClass,
   updateStudent,
   type ActionResult,
-} from "./mutations.ts";
+} from "@ict/core";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;

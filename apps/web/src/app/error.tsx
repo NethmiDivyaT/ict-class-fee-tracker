@@ -18,15 +18,34 @@ export default function Error({
 
       <div className="panel space-y-3 p-4 text-sm leading-relaxed">
         <p>
-          The web app could not load data from the API. Locally, start both apps
-          from the repo root with <code>npm run dev</code> (API on port 4000,
-          web on port 3000).
+          On Vercel this usually means the hosted database is not configured.
+          Local SQLite cannot persist in production.
         </p>
-        <p>
-          In production, set <code>API_URL</code> on the web app to the backend
-          URL. Hosted SQLite still uses <code>TURSO_DATABASE_URL</code> and{" "}
-          <code>TURSO_AUTH_TOKEN</code> on the API, not the frontend.
-        </p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>
+            Create a free database at{" "}
+            <a
+              className="text-[var(--accent)] underline"
+              href="https://turso.tech"
+              target="_blank"
+              rel="noreferrer"
+            >
+              turso.tech
+            </a>
+          </li>
+          <li>
+            In Vercel → Project → Settings → Environment Variables, add:
+            <ul className="mt-1 list-disc pl-5">
+              <li>
+                <code>TURSO_DATABASE_URL</code>
+              </li>
+              <li>
+                <code>TURSO_AUTH_TOKEN</code>
+              </li>
+            </ul>
+          </li>
+          <li>Redeploy the project.</li>
+        </ol>
         {error.message ? (
           <p className="text-xs text-[var(--muted)]">{error.message}</p>
         ) : null}

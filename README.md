@@ -4,15 +4,15 @@ Simple responsive app to track ICT class student fees in **LKR**.
 
 This is an npm workspaces monorepo:
 
-- `apps/web` — Next.js frontend
-- `apps/api` — Express API (SQLite / Turso)
+- `apps/web` — Next.js UI (also runs the data layer on the server)
+- `apps/api` — optional Express API
+- `packages/core` — SQLite / Turso, queries, and mutations
 
 ## Features
 
-- Add a class with students (one name per line)
-- Mark paid with student name + paying date
-- Dashboard: monthly income, paid/unpaid counts, outstanding
-- Records page with paid/unpaid and class filters
+- Weekly attendance (4 present days = 1 fee month)
+- Late payments auto-fill unpaid months, with a paying date
+- Dashboard, records, and annual reports
 
 ## Run locally
 
@@ -20,51 +20,31 @@ Needs Node.js 22 or newer (`node:sqlite`).
 
 ```bash
 npm install
-npm run dev
-```
-
-- API: [http://localhost:4000](http://localhost:4000)
-- Web: [http://localhost:3000](http://localhost:3000)
-
-Local SQLite is stored at `apps/api/data/fees.db`. The web app talks to the API using `API_URL` (default `http://localhost:4000`).
-
-Run one app at a time:
-
-```bash
-npm run dev:api
 npm run dev:web
 ```
 
-## Deploy
+Open [http://localhost:3000](http://localhost:3000). Local SQLite is at `apps/api/data/fees.db`.
 
-The frontend and API are separate services.
+The Express API is optional:
 
-### Vercel (web app)
+```bash
+npm run dev
+```
 
-This repo is a monorepo. The Next.js app lives in `apps/web`, so Vercel must use that build output (`apps/web/.next`), not a root `.next` folder.
+- Web: [http://localhost:3000](http://localhost:3000)
+- API: [http://localhost:4000](http://localhost:4000)
 
-`vercel.json` at the repo root already sets:
+## Deploy on Vercel
 
-- Build command: `npm run build -w web`
-- Output directory: `apps/web/.next`
+Vercel hosts `apps/web`. The Next.js server talks to Turso directly — you do **not** need a separate API host or `API_URL`.
 
-If a deploy still fails with `.next` was not found:
+1. Create a free database at [turso.tech](https://turso.tech)
+2. In Vercel → Project → Settings → Environment Variables, add:
+   - `TURSO_DATABASE_URL` = `libsql://...`
+   - `TURSO_AUTH_TOKEN` = your token
+3. Keep the repo-root `vercel.json` (build `npm run build -w web`, output `apps/web/.next`)
+4. Redeploy
 
-1. Vercel → Project → Settings → Build and Deployment
-2. Turn **off** Output Directory Override, or set it to `apps/web/.next`
-3. Leave Root Directory empty (repo root), **or** set Root Directory to `apps/web` and then remove `outputDirectory` from `vercel.json`
+If a deploy says `.next` was not found, turn **off** Output Directory Override in Vercel, or set it to `apps/web/.next`.
 
-Set this environment variable on the Vercel project:
-
-- `API_URL` = your API origin, for example `https://api.example.com`
-
-### API host
-
-Host `apps/api` on a Node 22+ host. Set `PORT` and, if you do not have a persistent disk, Turso:
-
-- `TURSO_DATABASE_URL`
-- `TURSO_AUTH_TOKEN`
-
-Optionally set `WEB_ORIGIN` on the API to the frontend origin for CORS.
-
-Tables are created automatically on first API request.
+Tables are created automatically on first request.
