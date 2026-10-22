@@ -9,7 +9,8 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w api\" \"npm run dev -w web\"",
     "dev:api": "npm run dev -w api",
     "dev:web": "npm run dev -w web",
-    "build": "npm run build -w api && npm run build -w web",
+    "build": "npm run build -w web",
+    "build:all": "npm run build -w api && npm run build -w web",
     "start": "concurrently -n api,web -c cyan,magenta \"npm run start -w api\" \"npm run start -w web\"",
     "lint": "npm run lint -w web"
   },

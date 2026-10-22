@@ -39,11 +39,32 @@ npm run dev:web
 
 The frontend and API are separate services.
 
-1. Host `apps/api` on a Node host. Set `PORT` and, if you do not have a persistent disk, Turso:
-   - `TURSO_DATABASE_URL`
-   - `TURSO_AUTH_TOKEN`
-2. Host `apps/web` (Vercel is fine). Set:
-   - `API_URL` = your API origin, for example `https://api.example.com`
-3. Optionally set `WEB_ORIGIN` on the API to the frontend origin for CORS.
+### Vercel (web app)
+
+This repo is a monorepo. The Next.js app lives in `apps/web`, so Vercel must use that build output (`apps/web/.next`), not a root `.next` folder.
+
+`vercel.json` at the repo root already sets:
+
+- Build command: `npm run build -w web`
+- Output directory: `apps/web/.next`
+
+If a deploy still fails with `.next` was not found:
+
+1. Vercel → Project → Settings → Build and Deployment
+2. Turn **off** Output Directory Override, or set it to `apps/web/.next`
+3. Leave Root Directory empty (repo root), **or** set Root Directory to `apps/web` and then remove `outputDirectory` from `vercel.json`
+
+Set this environment variable on the Vercel project:
+
+- `API_URL` = your API origin, for example `https://api.example.com`
+
+### API host
+
+Host `apps/api` on a Node 22+ host. Set `PORT` and, if you do not have a persistent disk, Turso:
+
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+
+Optionally set `WEB_ORIGIN` on the API to the frontend origin for CORS.
 
 Tables are created automatically on first API request.
