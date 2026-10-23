@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@ict/core"],
-  serverExternalPackages: ["node:sqlite"],
+  serverExternalPackages: ["@libsql/client", "node:sqlite"],
 };
 
 export default nextConfig;

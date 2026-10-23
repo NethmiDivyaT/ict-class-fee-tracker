@@ -8,13 +8,16 @@ import express, {
 } from "express";
 import {
   DatabaseConfigError,
+  getStorageInfo,
   createClass,
   createStudent,
   deleteClass,
   deleteStudent,
+  getAnnualAttendance,
   getAnnualStats,
   getClass,
   getClassAnnualStats,
+  getClassHoliday,
   getClassMonthlyStats,
   getMonthlyIncomeForYear,
   getMonthlyStats,
@@ -26,6 +29,8 @@ import {
   markPaid,
   markUnpaid,
   setAttendance,
+  setAttendanceByDate,
+  setClassHoliday,
   updateClass,
   updateStudent,
   type ActionResult,
@@ -72,9 +77,12 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
-});
+app.get(
+  "/api/health",
+  asyncHandler(async (_req, res) => {
+    res.json({ ok: true, ...(await getStorageInfo()) });
+  }),
+);
 
 app.get(
   "/api/classes",
@@ -176,6 +184,34 @@ app.put(
   }),
 );
 
+app.put(
+  "/api/attendance/bulk",
+  asyncHandler(async (req, res) => {
+    sendResult(res, await setAttendanceByDate(req.body));
+  }),
+);
+
+app.get(
+  "/api/classes/:id/holiday",
+  asyncHandler(async (req, res) => {
+    const id = parsePositiveInt(req.params.id);
+    const year = parsePositiveInt(req.query.year);
+    const week = parsePositiveInt(req.query.week);
+    if (!id || !year || !week) {
+      res.status(400).json({ ok: false, error: "class id, year, and week are required." });
+      return;
+    }
+    res.json((await getClassHoliday(id, year, week)) ?? null);
+  }),
+);
+
+app.put(
+  "/api/holidays",
+  asyncHandler(async (req, res) => {
+    sendResult(res, await setClassHoliday(req.body));
+  }),
+);
+
 app.delete(
   "/api/students/:id",
   asyncHandler(async (req, res) => {
@@ -273,6 +309,18 @@ app.get(
       return;
     }
     res.json(await getClassAnnualStats(year));
+  }),
+);
+
+app.get(
+  "/api/stats/annual/attendance",
+  asyncHandler(async (req, res) => {
+    const year = parsePositiveInt(req.query.year);
+    if (!year) {
+      res.status(400).json({ ok: false, error: "year is required." });
+      return;
+    }
+    res.json(await getAnnualAttendance(year));
   }),
 );
 

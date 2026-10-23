@@ -1,20 +1,25 @@
 export {
   DatabaseConfigError,
   getDatabaseMode,
+  getStorageInfo,
   sqlAll,
   sqlGet,
   sqlRun,
   type AttendanceRow,
   type BillingPeriod,
+  type ClassHolidayRow,
   type ClassRow,
   type PaymentRow,
+  type StorageInfo,
   type StudentRow,
 } from "./db";
 
 export {
+  getAnnualAttendance,
   getAnnualStats,
   getClass,
   getClassAnnualStats,
+  getClassHoliday,
   getClassMonthlyStats,
   getMonthlyIncomeForYear,
   getMonthlyStats,
@@ -28,6 +33,7 @@ export {
   type ClassWithCounts,
   type MonthIncome,
   type MonthlyStats,
+  type StudentAttendanceStat,
   type StudentWithPayment,
 } from "./queries";
 
@@ -39,6 +45,8 @@ export {
   markPaid,
   markUnpaid,
   setAttendance,
+  setAttendanceByDate,
+  setClassHoliday,
   updateClass,
   updateStudent,
   type ActionResult,

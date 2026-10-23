@@ -9,6 +9,8 @@ import {
   markPaid as markPaidRecord,
   markUnpaid as markUnpaidRecord,
   setAttendance as setAttendanceRecord,
+  setAttendanceByDate as setAttendanceByDateRecord,
+  setClassHoliday as setClassHolidayRecord,
   updateClass as updateClassRecord,
   updateStudent as updateStudentRecord,
   type ActionResult,
@@ -169,6 +171,38 @@ export async function setAttendance(formData: FormData): Promise<ActionResult> {
     week: Number(formData.get("week")),
     attended: formData.get("attended") === "1",
     attended_on: String(formData.get("attended_on") || ""),
+  });
+  if (result.ok) {
+    revalidateAll();
+    if (classId) revalidatePath(`/classes/${classId}`);
+  }
+  return result;
+}
+
+export async function setAttendanceByDate(
+  formData: FormData,
+): Promise<ActionResult> {
+  const classId = Number(formData.get("class_id"));
+  const result = await setAttendanceByDateRecord({
+    class_id: classId,
+    attended_on: String(formData.get("attended_on") || ""),
+    student_ids: formData.getAll("student_id"),
+  });
+  if (result.ok) {
+    revalidateAll();
+    if (classId) revalidatePath(`/classes/${classId}`);
+  }
+  return result;
+}
+
+export async function setClassHoliday(formData: FormData): Promise<ActionResult> {
+  const classId = Number(formData.get("class_id"));
+  const result = await setClassHolidayRecord({
+    class_id: classId,
+    year: Number(formData.get("year")),
+    week: Number(formData.get("week")),
+    holiday: formData.get("holiday") === "1",
+    note: String(formData.get("note") || ""),
   });
   if (result.ok) {
     revalidateAll();

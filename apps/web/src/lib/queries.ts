@@ -2,9 +2,11 @@ import { listStudentsForPeriod } from "@ict/core";
 import type { StudentWithPayment } from "@ict/core";
 
 export {
+  getAnnualAttendance,
   getAnnualStats,
   getClass,
   getClassAnnualStats,
+  getClassHoliday,
   getClassMonthlyStats,
   getMonthlyIncomeForYear,
   getMonthlyStats,
@@ -22,6 +24,7 @@ export {
   type MonthIncome,
   type MonthlyStats,
   type PaymentRow,
+  type StudentAttendanceStat,
   type StudentWithPayment,
 } from "@ict/core";
 

@@ -9,21 +9,25 @@ export function AttendanceToggle({
   classId,
   year,
   week,
+  attendedOn,
   attended,
+  disabled,
 }: {
   studentId: number;
   studentName: string;
   classId: number;
   year: number;
   week: number;
+  attendedOn: string;
   attended: boolean;
+  disabled?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
   return (
     <button
       type="button"
-      disabled={pending}
+      disabled={pending || disabled}
       aria-label={`${attended ? "Mark absent" : "Mark present"}: ${studentName}`}
       className={`inline-flex min-h-10 w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition disabled:opacity-60 md:w-auto ${
         attended
@@ -37,12 +41,13 @@ export function AttendanceToggle({
           fd.set("class_id", String(classId));
           fd.set("year", String(year));
           fd.set("week", String(week));
+          fd.set("attended_on", attendedOn);
           fd.set("attended", attended ? "0" : "1");
           await setAttendance(fd);
         });
       }}
     >
-      {pending ? "Saving…" : attended ? "Present" : "Mark present"}
+      {pending ? "Saving…" : disabled ? "Holiday" : attended ? "Present" : "Mark present"}
     </button>
   );
 }

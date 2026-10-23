@@ -7,6 +7,30 @@ export function formatLKR(amount: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+export function formatAttendanceDay(iso: string): string {
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-LK", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function weekCountLabel(count: number): string {
+  return `${count} week${count === 1 ? "" : "s"}`;
+}
+
+export const WEEKS_PER_FEE_MONTH = 4;
+
+export function slotPresentWeeks(slot: { days?: string[] }) {
+  return slot.days?.length ?? 0;
+}
+
+export function slotUpcomingWeeks(slot: { days?: string[] }) {
+  return Math.max(0, WEEKS_PER_FEE_MONTH - slotPresentWeeks(slot));
+}
+
 export function monthLabel(year: number, month: number): string {
   return new Date(year, month - 1, 1).toLocaleString("en-LK", {
     month: "long",
@@ -91,10 +115,25 @@ export function parsePeriod(searchParams: {
   };
 }
 
+export function defaultAttendedOn(year: number, week: number): string {
+  const today = new Date();
+  const current = getISOWeekParts(today);
+  if (current.year === year && current.week === week) {
+    return today.toLocaleDateString("en-CA");
+  }
+  return getISOWeekMonday(year, week).toISOString().slice(0, 10);
+}
+
 export function parseWeekPeriod(searchParams: {
   year?: string;
   week?: string;
-}): { year: number; week: number; month: number } {
+  date?: string;
+}): { year: number; week: number; month: number; date: string } {
+  const date = String(searchParams.date || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const parts = getISOWeekParts(new Date(`${date}T00:00:00`));
+    return { ...parts, date };
+  }
   const fallback = getISOWeekParts();
   const year = Number(searchParams.year);
   const week = Number(searchParams.week);
@@ -106,9 +145,14 @@ export function parseWeekPeriod(searchParams: {
     week <= 53
   ) {
     const monday = getISOWeekMonday(year, week);
-    return { year, week, month: monday.getUTCMonth() + 1 };
+    return {
+      year,
+      week,
+      month: monday.getUTCMonth() + 1,
+      date: defaultAttendedOn(year, week),
+    };
   }
-  return fallback;
+  return { ...fallback, date: defaultAttendedOn(fallback.year, fallback.week) };
 }
 
 export function parseYear(searchParams: { year?: string }): number {

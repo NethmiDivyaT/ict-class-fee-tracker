@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { AttendanceReport } from "@/components/AttendanceReport";
 import { IncomeChart } from "@/components/IncomeChart";
 import { StatCard } from "@/components/StatCard";
 import { YearPicker } from "@/components/YearPicker";
 import { formatLKR, monthLabel, parseYear, SHORT_MONTHS } from "@/lib/format";
 import {
+  getAnnualAttendance,
   getAnnualStats,
   getClassAnnualStats,
   getMonthlyIncomeForYear,
@@ -15,14 +17,27 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; view?: string; classId?: string }>;
 }) {
-  const year = parseYear(await searchParams);
-  const [annual, months, byClass] = await Promise.all([
+  const params = await searchParams;
+  const year = parseYear(params);
+  const view = params.view === "student" ? "student" : "class";
+  const classIdRaw = Number(params.classId);
+  const classId = Number.isFinite(classIdRaw) && classIdRaw > 0 ? classIdRaw : undefined;
+  const [annual, months, byClass, attendance] = await Promise.all([
     getAnnualStats(year),
     getMonthlyIncomeForYear(year),
     getClassAnnualStats(year),
+    getAnnualAttendance(year),
   ]);
+  const presentWeeks = attendance.reduce(
+    (sum, row) => sum + row.present_weeks,
+    0,
+  );
+  const unpaidFeeMonths = attendance.reduce(
+    (sum, row) => sum + row.unpaid_months,
+    0,
+  );
 
   const averageMonthly =
     months.filter((m) => m.income > 0).length > 0
@@ -96,6 +111,21 @@ export default async function ReportsPage({
         </div>
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2">
+        <StatCard
+          label="Present weeks"
+          value={String(presentWeeks)}
+          hint="Counted toward fee months in this year"
+          tone="accent"
+        />
+        <StatCard
+          label="Unpaid fee months"
+          value={String(unpaidFeeMonths)}
+          hint="From 4 present weeks = 1 paying month"
+          tone="warn"
+        />
+      </section>
+
       <section className="panel overflow-hidden anim-fade-up anim-delay-2">
         <div className="border-b border-[var(--line)] px-4 py-3">
           <h2 className="font-semibold">Monthly income</h2>
@@ -113,6 +143,13 @@ export default async function ReportsPage({
           )}
         </div>
       </section>
+
+      <AttendanceReport
+        year={year}
+        view={view}
+        classId={classId}
+        attendance={attendance}
+      />
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="panel overflow-hidden anim-fade-up anim-delay-3">

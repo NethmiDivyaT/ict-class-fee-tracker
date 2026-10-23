@@ -113,7 +113,11 @@ export default async function RecordsPage({
           </div>
           <Suspense fallback={null}>
             {isWeeklyView ? (
-              <WeekPicker year={year} week={week} />
+              <WeekPicker
+                year={year}
+                week={week}
+                date={parseWeekPeriod(params).date}
+              />
             ) : (
               <MonthPicker year={year} month={month} />
             )}
@@ -249,6 +253,8 @@ export default async function RecordsPage({
                         periodLabel={isWeeklyView ? "this week" : "unpaid months"}
                         mode={isWeeklyView ? "weekly" : "monthly"}
                         unpaidSlots={s.unpaid_slots ?? []}
+                        paidSlots={s.paid_slots ?? []}
+                        leftoverDates={s.leftover_dates ?? []}
                       />
                     </td>
                   </tr>

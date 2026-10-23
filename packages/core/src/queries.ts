@@ -9,10 +9,16 @@ import {
   sqlAll,
   sqlGet,
   type BillingPeriod,
+  type ClassHolidayRow,
   type ClassRow,
   type PaymentRow,
   type StudentRow,
 } from "./db";
+
+function asNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export type ClassWithCounts = ClassRow & {
   student_count: number;
@@ -31,9 +37,11 @@ export type StudentWithPayment = StudentRow & {
   attended: number;
   attendance_days: number;
   leftover_days: number;
+  leftover_dates: string[];
   billable_months: number;
   unpaid_months: number;
   unpaid_slots: FeeSlot[];
+  paid_slots: FeeSlot[];
 };
 
 export type MonthlyStats = {
@@ -75,6 +83,102 @@ export async function getClass(id: number): Promise<ClassRow | undefined> {
   return sqlGet<ClassRow>(`SELECT * FROM classes WHERE id = ?`, [id]);
 }
 
+export async function getClassHoliday(
+  classId: number,
+  year: number,
+  week: number,
+): Promise<ClassHolidayRow | undefined> {
+  return sqlGet<ClassHolidayRow>(
+    `SELECT * FROM class_holidays WHERE class_id = ? AND year = ? AND week = ?`,
+    [classId, year, week],
+  );
+}
+
+export type StudentAttendanceStat = {
+  student_id: number;
+  student_name: string;
+  class_id: number;
+  class_name: string;
+  billing_period: BillingPeriod;
+  active: number;
+  present_weeks: number;
+  holiday_weeks: number;
+  leftover_days: number;
+  billable_months: number;
+  paid_months: number;
+  unpaid_months: number;
+};
+
+export async function getAnnualAttendance(
+  year: number,
+): Promise<StudentAttendanceStat[]> {
+  const [students, presentRows, holidayRows] = await Promise.all([
+    sqlAll<{
+      id: number;
+      name: string;
+      active: number;
+      class_id: number;
+      class_name: string;
+      billing_period: BillingPeriod;
+    }>(
+      `SELECT s.id, s.name, s.active, s.class_id, c.name AS class_name, c.billing_period
+       FROM students s
+       JOIN classes c ON c.id = s.class_id
+       WHERE s.active = 1
+       ORDER BY c.name COLLATE NOCASE, s.name COLLATE NOCASE`,
+    ),
+    sqlAll<{ student_id: number; present_weeks: number }>(
+      `SELECT a.student_id, COUNT(*) AS present_weeks
+       FROM attendance a
+       JOIN students s ON s.id = a.student_id
+       LEFT JOIN class_holidays h
+         ON h.class_id = s.class_id AND h.year = a.year AND h.week = a.week
+       WHERE a.attended = 1 AND a.year = ? AND h.id IS NULL
+       GROUP BY a.student_id`,
+      [year],
+    ),
+    sqlAll<{ class_id: number; holiday_weeks: number }>(
+      `SELECT class_id, COUNT(*) AS holiday_weeks
+       FROM class_holidays
+       WHERE year = ?
+       GROUP BY class_id`,
+      [year],
+    ),
+  ]);
+
+  const presentByStudent = new Map(
+    presentRows.map((row) => [row.student_id, asNumber(row.present_weeks)]),
+  );
+  const holidaysByClass = new Map(
+    holidayRows.map((row) => [row.class_id, asNumber(row.holiday_weeks)]),
+  );
+
+  return Promise.all(
+    students.map(async (student) => {
+      const billing =
+        student.billing_period === "monthly"
+          ? await getStudentBilling(student.id)
+          : null;
+      const yearSlots =
+        billing?.slots.filter((slot) => slot.year === year) ?? [];
+      return {
+        student_id: student.id,
+        student_name: student.name,
+        class_id: student.class_id,
+        class_name: student.class_name,
+        billing_period: student.billing_period,
+        active: student.active,
+        present_weeks: presentByStudent.get(student.id) ?? 0,
+        holiday_weeks: holidaysByClass.get(student.class_id) ?? 0,
+        leftover_days: billing?.leftover_days ?? 0,
+        billable_months: yearSlots.length,
+        paid_months: yearSlots.filter((slot) => slot.paid).length,
+        unpaid_months: yearSlots.filter((slot) => !slot.paid).length,
+      };
+    }),
+  );
+}
+
 async function withAttendanceAndBilling(
   rows: StudentWithPayment[],
   classId: number,
@@ -93,14 +197,17 @@ async function withAttendanceAndBilling(
           : null;
       const present = byStudent.get(row.id);
       const unpaid = billing?.slots.filter((slot) => !slot.paid) ?? [];
+      const paid = billing?.slots.filter((slot) => slot.paid) ?? [];
       return {
         ...row,
         attended: present?.attended ? 1 : 0,
         attendance_days: billing?.attendance_days ?? 0,
         leftover_days: billing?.leftover_days ?? 0,
+        leftover_dates: billing?.leftover_dates ?? [],
         billable_months: billing?.billable_months ?? 0,
         unpaid_months: billing?.unpaid_months ?? unpaid.length,
         unpaid_slots: unpaid,
+        paid_slots: paid,
       };
     }),
   );
@@ -200,25 +307,23 @@ export async function listStudentsForPeriod(
             ? await getStudentBilling(row.id)
             : null;
         const unpaid = billing?.slots.filter((slot) => !slot.paid) ?? [];
+        const paid = billing?.slots.filter((slot) => slot.paid) ?? [];
         return {
           ...row,
           attended: 0,
           attendance_days: billing?.attendance_days ?? 0,
           leftover_days: billing?.leftover_days ?? 0,
+          leftover_dates: billing?.leftover_dates ?? [],
           billable_months: billing?.billable_months ?? 0,
           unpaid_months: billing?.unpaid_months ?? 0,
           unpaid_slots: unpaid,
+          paid_slots: paid,
         };
       }),
     );
   }
 
   return withAttendanceAndBilling(rows, classId, year, week);
-}
-
-function asNumber(value: unknown): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
 }
 
 type MonthlyStudent = {
@@ -228,25 +333,33 @@ type MonthlyStudent = {
 };
 
 async function listMonthlySlotStats(year: number, month: number) {
-  const [students, days, payments] = await Promise.all([
+  const [students, days, holidays, payments] = await Promise.all([
     sqlAll<MonthlyStudent>(
       `SELECT s.id, s.class_id, c.monthly_fee
        FROM students s
        JOIN classes c ON c.id = s.class_id
        WHERE s.active = 1 AND c.billing_period = 'monthly'`,
     ),
-    sqlAll<AttendanceDay & { student_id: number }>(
-      `SELECT student_id, year, week, attended_on
-       FROM attendance
-       WHERE attended = 1`,
+    sqlAll<AttendanceDay & { student_id: number; class_id: number }>(
+      `SELECT a.student_id, s.class_id, a.year, a.week, a.attended_on
+       FROM attendance a
+       JOIN students s ON s.id = a.student_id
+       WHERE a.attended = 1`,
+    ),
+    sqlAll<{ class_id: number; year: number; week: number }>(
+      `SELECT class_id, year, week FROM class_holidays`,
     ),
     sqlAll<PaymentRow>(
       `SELECT * FROM payments WHERE week = 0`,
     ),
   ]);
 
+  const holidayKeys = new Set(
+    holidays.map((row) => `${row.class_id}-${row.year}-${row.week}`),
+  );
   const daysByStudent = new Map<number, AttendanceDay[]>();
   for (const day of days) {
+    if (holidayKeys.has(`${day.class_id}-${day.year}-${day.week}`)) continue;
     const list = daysByStudent.get(day.student_id) ?? [];
     list.push(day);
     daysByStudent.set(day.student_id, list);

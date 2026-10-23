@@ -1,5 +1,5 @@
-import { sqlGet, sqlRun, type BillingPeriod } from "./db";
-import { defaultAttendedOn, getISOWeekMonday } from "./format";
+import { sqlAll, sqlGet, sqlRun, type BillingPeriod } from "./db";
+import { defaultAttendedOn, getISOWeekMonday, getISOWeekParts } from "./format";
 
 export type ActionResult =
   | { ok: true; id?: number }
@@ -142,6 +142,19 @@ export async function deleteStudent(idRaw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
+function parseISODate(raw: unknown): string | null {
+  const value = String(raw || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+async function isHolidayWeek(classId: number, year: number, week: number) {
+  const row = await sqlGet<{ id: number }>(
+    `SELECT id FROM class_holidays WHERE class_id = ? AND year = ? AND week = ?`,
+    [classId, year, week],
+  );
+  return Boolean(row);
+}
+
 export async function setAttendance(input: {
   student_id?: unknown;
   year?: unknown;
@@ -150,21 +163,25 @@ export async function setAttendance(input: {
   attended_on?: unknown;
 }): Promise<ActionResult> {
   const studentId = Number(input.student_id);
-  const year = Number(input.year);
-  const week = Number(input.week);
   const attended =
     input.attended === false ||
     input.attended === 0 ||
     input.attended === "0"
       ? 0
       : 1;
+  const attendedOn = parseISODate(input.attended_on);
+  const fromDate = attendedOn
+    ? getISOWeekParts(new Date(`${attendedOn}T00:00:00`))
+    : null;
+  const year = fromDate?.year ?? Number(input.year);
+  const week = fromDate?.week ?? Number(input.week);
 
   if (!studentId || !year || !Number.isFinite(week) || week < 1 || week > 53) {
     return { ok: false, error: "Student, year, and week are required." };
   }
 
-  const student = await sqlGet<{ id: number }>(
-    `SELECT id FROM students WHERE id = ?`,
+  const student = await sqlGet<{ id: number; class_id: number }>(
+    `SELECT id, class_id FROM students WHERE id = ?`,
     [studentId],
   );
   if (!student) return { ok: false, error: "Student not found." };
@@ -177,9 +194,12 @@ export async function setAttendance(input: {
     return { ok: true };
   }
 
-  const attendedOn =
-    String(input.attended_on || "").trim() || defaultAttendedOn(year, week);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(attendedOn)) {
+  if (await isHolidayWeek(student.class_id, year, week)) {
+    return { ok: false, error: "This week is a holiday and does not count toward fees." };
+  }
+
+  const onDate = attendedOn || defaultAttendedOn(year, week);
+  if (!parseISODate(onDate)) {
     return { ok: false, error: "Attendance date must be YYYY-MM-DD." };
   }
 
@@ -189,7 +209,104 @@ export async function setAttendance(input: {
      ON CONFLICT(student_id, year, week) DO UPDATE SET
        attended = 1,
        attended_on = excluded.attended_on`,
-    [studentId, year, week, attendedOn],
+    [studentId, year, week, onDate],
+  );
+  return { ok: true };
+}
+
+export async function setAttendanceByDate(input: {
+  class_id?: unknown;
+  attended_on?: unknown;
+  student_ids?: unknown;
+}): Promise<ActionResult> {
+  const classId = Number(input.class_id);
+  const attendedOn = parseISODate(input.attended_on);
+  const ids = Array.isArray(input.student_ids)
+    ? input.student_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    : String(input.student_ids || "")
+        .split(/[\s,]+/)
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+  if (!classId) return { ok: false, error: "Class is required." };
+  if (!attendedOn) return { ok: false, error: "Pick the class date." };
+  if (ids.length === 0) {
+    return { ok: false, error: "Select at least one student who was present." };
+  }
+
+  const cls = await sqlGet<{ id: number }>(
+    `SELECT id FROM classes WHERE id = ?`,
+    [classId],
+  );
+  if (!cls) return { ok: false, error: "Class not found." };
+
+  const { year, week } = getISOWeekParts(new Date(`${attendedOn}T00:00:00`));
+  if (await isHolidayWeek(classId, year, week)) {
+    return { ok: false, error: "This week is a holiday and does not count toward fees." };
+  }
+
+  const members = await sqlAll<{ id: number }>(
+    `SELECT id FROM students WHERE class_id = ? AND active = 1`,
+    [classId],
+  );
+  const allowed = new Set(members.map((row) => row.id));
+
+  for (const studentId of ids) {
+    if (!allowed.has(studentId)) {
+      return { ok: false, error: "One of the selected students is not in this class." };
+    }
+    const result = await setAttendance({
+      student_id: studentId,
+      year,
+      week,
+      attended: 1,
+      attended_on: attendedOn,
+    });
+    if (!result.ok) return result;
+  }
+
+  return { ok: true };
+}
+
+export async function setClassHoliday(input: {
+  class_id?: unknown;
+  year?: unknown;
+  week?: unknown;
+  holiday?: unknown;
+  note?: unknown;
+}): Promise<ActionResult> {
+  const classId = Number(input.class_id);
+  const year = Number(input.year);
+  const week = Number(input.week);
+  const holiday =
+    input.holiday === true ||
+    input.holiday === 1 ||
+    input.holiday === "1";
+  const note = String(input.note || "").trim() || null;
+
+  if (!classId || !year || !Number.isFinite(week) || week < 1 || week > 53) {
+    return { ok: false, error: "Class, year, and week are required." };
+  }
+
+  const cls = await sqlGet<{ id: number }>(
+    `SELECT id FROM classes WHERE id = ?`,
+    [classId],
+  );
+  if (!cls) return { ok: false, error: "Class not found." };
+
+  if (!holiday) {
+    await sqlRun(
+      `DELETE FROM class_holidays WHERE class_id = ? AND year = ? AND week = ?`,
+      [classId, year, week],
+    );
+    return { ok: true };
+  }
+
+  await sqlRun(
+    `INSERT INTO class_holidays (class_id, year, week, note)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(class_id, year, week) DO UPDATE SET note = excluded.note`,
+    [classId, year, week, note],
   );
   return { ok: true };
 }
@@ -327,27 +444,35 @@ export async function markPaid(input: {
       ? Math.round(amount)
       : Math.round(amount / periods.length);
 
-  for (const period of periods) {
-    await sqlRun(
-      `INSERT INTO payments (student_id, student_name, year, month, week, slot, amount, paid_on, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(student_id, year, month, week, slot) DO UPDATE SET
-         student_name = excluded.student_name,
-         amount = excluded.amount,
-         paid_on = excluded.paid_on,
-         note = excluded.note`,
-      [
-        studentId,
-        student.name,
-        period.year,
-        period.month,
-        period.week,
-        period.slot,
-        perPeriod,
-        paidOn,
-        note,
-      ],
-    );
+  try {
+    for (const period of periods) {
+      await sqlRun(
+        `INSERT INTO payments (student_id, student_name, year, month, week, slot, amount, paid_on, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(student_id, year, month, week, slot) DO UPDATE SET
+           student_name = excluded.student_name,
+           amount = excluded.amount,
+           paid_on = excluded.paid_on,
+           note = excluded.note`,
+        [
+          studentId,
+          student.name,
+          period.year,
+          period.month,
+          period.week,
+          period.slot,
+          perPeriod,
+          paidOn,
+          note,
+        ],
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return {
+      ok: false,
+      error: message || "Could not save the payment.",
+    };
   }
 
   return { ok: true };
