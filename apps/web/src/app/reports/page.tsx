@@ -54,7 +54,7 @@ export default async function ReportsPage({
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="anim-fade-up delay-1">
+        <div className="anim-fade-up anim-delay-1">
           <StatCard
             label="Annual income"
             value={formatLKR(annual.total_income)}
@@ -62,7 +62,7 @@ export default async function ReportsPage({
             tone="accent"
           />
         </div>
-        <div className="anim-fade-up delay-2">
+        <div className="anim-fade-up anim-delay-2">
           <StatCard
             label="Students paid"
             value={String(annual.students_paid)}
@@ -70,7 +70,7 @@ export default async function ReportsPage({
             tone="good"
           />
         </div>
-        <div className="anim-fade-up delay-3">
+        <div className="anim-fade-up anim-delay-3">
           <StatCard
             label="Best month"
             value={
@@ -86,7 +86,7 @@ export default async function ReportsPage({
             tone="gold"
           />
         </div>
-        <div className="anim-fade-up delay-4">
+        <div className="anim-fade-up anim-delay-4">
           <StatCard
             label="Avg / active month"
             value={formatLKR(averageMonthly)}
@@ -96,7 +96,7 @@ export default async function ReportsPage({
         </div>
       </section>
 
-      <section className="panel overflow-hidden anim-fade-up delay-2">
+      <section className="panel overflow-hidden anim-fade-up anim-delay-2">
         <div className="border-b border-[var(--line)] px-4 py-3">
           <h2 className="font-semibold">Monthly income</h2>
           <p className="text-sm text-[var(--muted)]">
@@ -115,7 +115,7 @@ export default async function ReportsPage({
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="panel overflow-hidden anim-fade-up delay-3">
+        <div className="panel overflow-hidden anim-fade-up anim-delay-3">
           <div className="border-b border-[var(--line)] px-4 py-3">
             <h2 className="font-semibold">Income by class</h2>
           </div>
@@ -161,7 +161,7 @@ export default async function ReportsPage({
           )}
         </div>
 
-        <div className="panel overflow-hidden anim-fade-up delay-4">
+        <div className="panel overflow-hidden anim-fade-up anim-delay-4">
           <div className="border-b border-[var(--line)] px-4 py-3">
             <h2 className="font-semibold">Month breakdown</h2>
           </div>

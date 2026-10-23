@@ -398,7 +398,7 @@ table.data tr:last-child td {
   border: 1px solid transparent;
   box-shadow: 0 8px 22px rgb(18 48 73 / 6%);
   transition: transform 180ms ease, box-shadow 180ms ease;
-  animation: rise-in 480ms ease both;
+  animation: rise-in 480ms ease;
 }
 
 .stat-card:hover {
@@ -474,21 +474,19 @@ table.data tr:last-child td {
 }
 
 .anim-fade-up {
-  animation: rise-in 560ms ease both;
+  animation: rise-in 560ms ease;
 }
 
-.delay-1 { animation-delay: 40ms; }
-.delay-2 { animation-delay: 90ms; }
-.delay-3 { animation-delay: 140ms; }
-.delay-4 { animation-delay: 190ms; }
+.anim-delay-1 { animation-delay: 40ms; }
+.anim-delay-2 { animation-delay: 90ms; }
+.anim-delay-3 { animation-delay: 140ms; }
+.anim-delay-4 { animation-delay: 190ms; }
 
 @keyframes rise-in {
   from {
-    opacity: 0;
     transform: translateY(10px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }

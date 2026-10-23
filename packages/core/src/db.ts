@@ -93,10 +93,10 @@ function normalizeValue(value: unknown): unknown {
   return value;
 }
 
-function normalizeRow<T>(row: Row): T {
+function normalizeRow<T>(row: Record<string, unknown> | Row): T {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
-    out[key] = normalizeValue(row[key]);
+    out[key] = normalizeValue((row as Record<string, unknown>)[key]);
   }
   return out as T;
 }
@@ -319,7 +319,9 @@ export async function sqlAll<T>(sql: string, args: InArgs = []): Promise<T[]> {
     const values = (Array.isArray(args) ? args : []) as Array<
       string | number | bigint | null | Buffer
     >;
-    return stmt.all(...values) as T[];
+    return stmt
+      .all(...values)
+      .map((row) => normalizeRow<T>(row as Record<string, unknown>));
   }
 
   const result = await getRemoteDb().execute({ sql, args });

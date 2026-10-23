@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 
 const months = [
   "January",
@@ -27,12 +28,16 @@ export function MonthPicker({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
 
   function update(nextYear: number, nextMonth: number) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("year", String(nextYear));
     params.set("month", String(nextMonth));
-    router.push(`${pathname}?${params.toString()}`);
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
+      router.refresh();
+    });
   }
 
   const years = Array.from({ length: 6 }, (_, i) => year - 2 + i);

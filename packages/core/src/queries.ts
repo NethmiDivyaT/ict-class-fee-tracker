@@ -1,6 +1,8 @@
 import {
+  buildFeeSlots,
   getClassWeekAttendance,
   getStudentBilling,
+  type AttendanceDay,
   type FeeSlot,
 } from "./billing";
 import {
@@ -214,55 +216,100 @@ export async function listStudentsForPeriod(
   return withAttendanceAndBilling(rows, classId, year, week);
 }
 
+function asNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+type MonthlyStudent = {
+  id: number;
+  class_id: number;
+  monthly_fee: number;
+};
+
+async function listMonthlySlotStats(year: number, month: number) {
+  const [students, days, payments] = await Promise.all([
+    sqlAll<MonthlyStudent>(
+      `SELECT s.id, s.class_id, c.monthly_fee
+       FROM students s
+       JOIN classes c ON c.id = s.class_id
+       WHERE s.active = 1 AND c.billing_period = 'monthly'`,
+    ),
+    sqlAll<AttendanceDay & { student_id: number }>(
+      `SELECT student_id, year, week, attended_on
+       FROM attendance
+       WHERE attended = 1`,
+    ),
+    sqlAll<PaymentRow>(
+      `SELECT * FROM payments WHERE week = 0`,
+    ),
+  ]);
+
+  const daysByStudent = new Map<number, AttendanceDay[]>();
+  for (const day of days) {
+    const list = daysByStudent.get(day.student_id) ?? [];
+    list.push(day);
+    daysByStudent.set(day.student_id, list);
+  }
+
+  const paymentsByStudent = new Map<number, PaymentRow[]>();
+  for (const payment of payments) {
+    const list = paymentsByStudent.get(payment.student_id) ?? [];
+    list.push(payment);
+    paymentsByStudent.set(payment.student_id, list);
+  }
+
+  return students.map((student) => {
+    const billing = buildFeeSlots(
+      daysByStudent.get(student.id) ?? [],
+      paymentsByStudent.get(student.id) ?? [],
+    );
+    const slots = billing.slots.filter(
+      (slot) => slot.year === year && slot.month === month,
+    );
+    const due = slots.length > 0;
+    const unpaid = slots.some((slot) => !slot.paid);
+    return {
+      student,
+      slots,
+      due,
+      paid: due && !unpaid,
+      unpaid: due && unpaid,
+      expected: slots.length * asNumber(student.monthly_fee),
+      income: slots.reduce((sum, slot) => sum + asNumber(slot.amount), 0),
+    };
+  });
+}
+
 export async function getMonthlyStats(
   year: number,
   month: number,
 ): Promise<MonthlyStats> {
-  const row = (await sqlGet<{
-    active_students: number;
-    paid_students: number;
-    unpaid_students: number;
-    total_income: number;
-    expected_income: number;
-  }>(
-    `SELECT
-      COUNT(s.id) AS active_students,
-      COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS paid_students,
-      COALESCE(SUM(CASE WHEN p.id IS NULL THEN 1 ELSE 0 END), 0) AS unpaid_students,
-      COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN p.amount ELSE 0 END), 0) AS total_income,
-      COALESCE(SUM(c.monthly_fee), 0) AS expected_income
-     FROM students s
-     JOIN classes c ON c.id = s.class_id
-     LEFT JOIN payments p
-       ON p.student_id = s.id
-      AND p.year = ?
-      AND p.month = ?
-      AND p.week = 0
-     WHERE s.active = 1 AND c.billing_period = 'monthly'`,
-    [year, month],
-  )) ?? {
-    active_students: 0,
-    paid_students: 0,
-    unpaid_students: 0,
-    total_income: 0,
-    expected_income: 0,
-  };
+  const [rows, incomeRow] = await Promise.all([
+    listMonthlySlotStats(year, month),
+    sqlGet<{ income: number }>(
+      `SELECT COALESCE(SUM(amount), 0) AS income
+       FROM payments
+       WHERE year = ? AND month = ?`,
+      [year, month],
+    ),
+  ]);
 
-  const weeklyIncome = (await sqlGet<{ income: number }>(
-    `SELECT COALESCE(SUM(amount), 0) AS income
-     FROM payments
-     WHERE year = ? AND month = ? AND week > 0`,
-    [year, month],
-  )) ?? { income: 0 };
-
-  const total_income = row.total_income + weeklyIncome.income;
+  const active_students = rows.length;
+  const paid_students = rows.filter((row) => row.paid).length;
+  const unpaid_students = rows.filter((row) => row.unpaid).length;
+  const expected_income = rows.reduce((sum, row) => sum + row.expected, 0);
+  const total_income = asNumber(incomeRow?.income);
 
   return {
     year,
     month,
-    ...row,
+    active_students,
+    paid_students,
+    unpaid_students,
     total_income,
-    outstanding: Math.max(0, row.expected_income - row.total_income),
+    expected_income,
+    outstanding: Math.max(0, expected_income - total_income),
   };
 }
 
@@ -270,29 +317,40 @@ export async function getClassMonthlyStats(
   year: number,
   month: number,
 ): Promise<ClassMonthlyStat[]> {
-  const monthly = await sqlAll<ClassMonthlyStat>(
-    `SELECT
-      c.id,
-      c.name,
-      c.monthly_fee,
-      c.billing_period,
-      COUNT(s.id) AS active_students,
-      COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS paid_students,
-      COALESCE(SUM(CASE WHEN p.id IS NULL THEN 1 ELSE 0 END), 0) AS unpaid_students,
-      COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN p.amount ELSE 0 END), 0) AS income,
-      COALESCE(SUM(c.monthly_fee), 0) AS expected
-     FROM classes c
-     LEFT JOIN students s ON s.class_id = c.id AND s.active = 1
-     LEFT JOIN payments p
-       ON p.student_id = s.id
-      AND p.year = ?
-      AND p.month = ?
-      AND p.week = 0
-     WHERE c.billing_period = 'monthly'
-     GROUP BY c.id
-     ORDER BY c.name COLLATE NOCASE`,
-    [year, month],
+  const [classes, rows, monthlyIncome] = await Promise.all([
+    sqlAll<ClassRow>(
+      `SELECT * FROM classes WHERE billing_period = 'monthly' ORDER BY name COLLATE NOCASE`,
+    ),
+    listMonthlySlotStats(year, month),
+    sqlAll<{ class_id: number; income: number }>(
+      `SELECT s.class_id, COALESCE(SUM(p.amount), 0) AS income
+       FROM payments p
+       JOIN students s ON s.id = p.student_id
+       JOIN classes c ON c.id = s.class_id
+       WHERE p.year = ? AND p.month = ? AND p.week = 0 AND c.billing_period = 'monthly'
+       GROUP BY s.class_id`,
+      [year, month],
+    ),
+  ]);
+
+  const incomeByClass = new Map(
+    monthlyIncome.map((row) => [row.class_id, asNumber(row.income)]),
   );
+
+  const monthly = classes.map((cls) => {
+    const classRows = rows.filter((row) => row.student.class_id === cls.id);
+    return {
+      id: cls.id,
+      name: cls.name,
+      monthly_fee: asNumber(cls.monthly_fee),
+      billing_period: cls.billing_period,
+      active_students: classRows.length,
+      paid_students: classRows.filter((row) => row.paid).length,
+      unpaid_students: classRows.filter((row) => row.unpaid).length,
+      income: incomeByClass.get(cls.id) ?? 0,
+      expected: classRows.reduce((sum, row) => sum + row.expected, 0),
+    };
+  });
 
   const weekly = await sqlAll<ClassMonthlyStat>(
     `SELECT
@@ -301,29 +359,50 @@ export async function getClassMonthlyStats(
       c.monthly_fee,
       c.billing_period,
       COUNT(DISTINCT s.id) AS active_students,
-      COUNT(DISTINCT p.student_id) AS paid_students,
+      COUNT(DISTINCT pay.student_id) AS paid_students,
       0 AS unpaid_students,
-      COALESCE(SUM(p.amount), 0) AS income,
+      COALESCE(SUM(pay.income), 0) AS income,
       0 AS expected
      FROM classes c
      LEFT JOIN students s ON s.class_id = c.id AND s.active = 1
-     LEFT JOIN payments p
-       ON p.student_id = s.id
-      AND p.year = ?
-      AND p.month = ?
-      AND p.week > 0
+     LEFT JOIN (
+       SELECT student_id, SUM(amount) AS income
+       FROM payments
+       WHERE year = ? AND month = ? AND week > 0
+       GROUP BY student_id
+     ) pay ON pay.student_id = s.id
      WHERE c.billing_period = 'weekly'
      GROUP BY c.id
      ORDER BY c.name COLLATE NOCASE`,
     [year, month],
   );
 
-  const weeklyAdjusted = weekly.map((row) => ({
-    ...row,
-    unpaid_students: Math.max(0, row.active_students - row.paid_students),
-  }));
+  const weeklyAdjusted = weekly.map((row) => {
+    const active_students = asNumber(row.active_students);
+    const paid_students = asNumber(row.paid_students);
+    return {
+      ...row,
+      monthly_fee: asNumber(row.monthly_fee),
+      active_students,
+      paid_students,
+      unpaid_students: Math.max(0, active_students - paid_students),
+      income: asNumber(row.income),
+      expected: asNumber(row.expected),
+    };
+  });
 
-  return [...monthly, ...weeklyAdjusted].sort((a, b) =>
+  return [
+    ...monthly.map((row) => ({
+      ...row,
+      monthly_fee: asNumber(row.monthly_fee),
+      active_students: asNumber(row.active_students),
+      paid_students: asNumber(row.paid_students),
+      unpaid_students: asNumber(row.unpaid_students),
+      income: asNumber(row.income),
+      expected: asNumber(row.expected),
+    })),
+    ...weeklyAdjusted,
+  ].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
   );
 }
@@ -398,9 +477,11 @@ export async function getAnnualStats(year: number): Promise<AnnualStats> {
 
   return {
     year,
-    ...summary,
+    total_income: asNumber(summary.total_income),
+    payment_count: asNumber(summary.payment_count),
+    students_paid: asNumber(summary.students_paid),
     best_month: best?.month ?? null,
-    best_month_income: best?.income ?? 0,
+    best_month_income: asNumber(best?.income),
   };
 }
 

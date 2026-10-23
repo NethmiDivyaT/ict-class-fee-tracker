@@ -48,8 +48,11 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="anim-fade-up delay-1">
+      <section
+        key={`${year}-${month}`}
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <div className="anim-fade-up anim-delay-1">
           <StatCard
             label="Total income"
             value={formatLKR(stats.total_income)}
@@ -57,7 +60,7 @@ export default async function DashboardPage({
             tone="accent"
           />
         </div>
-        <div className="anim-fade-up delay-2">
+        <div className="anim-fade-up anim-delay-2">
           <StatCard
             label="Paid students"
             value={String(stats.paid_students)}
@@ -65,7 +68,7 @@ export default async function DashboardPage({
             tone="good"
           />
         </div>
-        <div className="anim-fade-up delay-3">
+        <div className="anim-fade-up anim-delay-3">
           <StatCard
             label="Unpaid students"
             value={String(stats.unpaid_students)}
@@ -73,7 +76,7 @@ export default async function DashboardPage({
             tone="warn"
           />
         </div>
-        <div className="anim-fade-up delay-4">
+        <div className="anim-fade-up anim-delay-4">
           <StatCard
             label={`${year} annual income`}
             value={formatLKR(annual.total_income)}
@@ -188,7 +191,7 @@ export default async function DashboardPage({
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <div className="panel p-4 sm:p-5 anim-fade-up delay-3">
+        <div className="panel p-4 sm:p-5 anim-fade-up anim-delay-3">
           <h2 className="font-semibold">Unpaid this month?</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Filter paid and unpaid students for {monthLabel(year, month)}.
@@ -200,7 +203,7 @@ export default async function DashboardPage({
             View unpaid
           </Link>
         </div>
-        <div className="panel p-4 sm:p-5 anim-fade-up delay-4">
+        <div className="panel p-4 sm:p-5 anim-fade-up anim-delay-4">
           <h2 className="font-semibold">Annual income report</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
             See full-year totals, monthly chart, and class breakdown for {year}.

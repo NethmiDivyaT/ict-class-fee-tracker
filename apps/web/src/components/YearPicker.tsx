@@ -1,11 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 
 export function YearPicker({ year }: { year: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
   const years = Array.from({ length: 6 }, (_, i) => year - 2 + i);
 
   return (
@@ -20,7 +22,10 @@ export function YearPicker({ year }: { year: number }) {
         onChange={(e) => {
           const params = new URLSearchParams(searchParams.toString());
           params.set("year", e.target.value);
-          router.push(`${pathname}?${params.toString()}`);
+          startTransition(() => {
+            router.push(`${pathname}?${params.toString()}`);
+            router.refresh();
+          });
         }}
       >
         {years.map((y) => (

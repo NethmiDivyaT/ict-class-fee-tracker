@@ -1,9 +1,10 @@
 export function formatLKR(amount: number): string {
+  const value = Number(amount);
   return new Intl.NumberFormat("en-LK", {
     style: "currency",
     currency: "LKR",
     maximumFractionDigits: 0,
-  }).format(amount || 0);
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 export function monthLabel(year: number, month: number): string {
